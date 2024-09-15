@@ -26,7 +26,7 @@ func TestInsert(t *testing.T) {
 	}
 }
 
-func TestDelta(t *testing.T) {
+func TestDiff(t *testing.T) {
 	set1 := InitGSet[int]()
 	set1.Insert(1)
 	set1.Insert(2)
@@ -47,4 +47,23 @@ func TestDelta(t *testing.T) {
 	if !reflect.DeepEqual(actualElems, expectedElems) {
 		t.Errorf("Expected set %v, but got %v", expectedElems, actualElems)
 	}
+}
+
+func TestSplit(t *testing.T) {
+	set := InitGSet[int]()
+	set.Insert(1)
+	set.Insert(2)
+	set.Insert(3)
+
+	actualDecomps := set.Split()
+
+	var expectedDecomps []GSet[int]
+	expectedDecomps = append(expectedDecomps, *InitGSetWithIrrElem(1))
+	expectedDecomps = append(expectedDecomps, *InitGSetWithIrrElem(2))
+	expectedDecomps = append(expectedDecomps, *InitGSetWithIrrElem(3))
+
+	if !reflect.DeepEqual(actualDecomps, expectedDecomps) {
+		t.Errorf("Expected set %v, but got %v", actualDecomps, expectedDecomps)
+	}
+
 }

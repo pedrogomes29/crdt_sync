@@ -1,8 +1,10 @@
-package main
+package gset
+
+import "crdt_sync/hasher"
 
 type ComparableHashable interface {
 	comparable
-	Hasher
+	hasher.Hasher
 }
 
 type GSet[T ComparableHashable] struct {

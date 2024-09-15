@@ -1,4 +1,6 @@
-package main
+package sync
+
+import "crdt_sync/hasher"
 
 type CRDT interface {
 	split() []CRDTDecomposition
@@ -8,5 +10,5 @@ type CRDT interface {
 
 type CRDTDecomposition interface {
 	CRDT
-	Hasher
+	hasher.Hasher
 }

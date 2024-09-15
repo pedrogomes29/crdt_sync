@@ -1,13 +1,14 @@
-package main
+package gset
 
 import (
 	"bytes"
+	"crdt_sync/hasher"
 	"reflect"
 	"testing"
 )
 
 func TestInsert(t *testing.T) {
-	gset := InitGSet[hint]()
+	gset := InitGSet[hasher.Hint]()
 	gset.Insert(1)
 	gset.Insert(1)
 	gset.Insert(2)
@@ -15,7 +16,7 @@ func TestInsert(t *testing.T) {
 
 	actualElems := gset.data
 
-	expectedElems := map[hint]struct{}{
+	expectedElems := map[hasher.Hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -27,7 +28,7 @@ func TestInsert(t *testing.T) {
 }
 
 func TestElems(t *testing.T) {
-	gset := InitGSet[hint]()
+	gset := InitGSet[hasher.Hint]()
 	gset.Insert(1)
 	gset.Insert(1)
 	gset.Insert(2)
@@ -35,7 +36,7 @@ func TestElems(t *testing.T) {
 
 	actualElems := gset.Elems()
 
-	expectedElems := map[hint]struct{}{
+	expectedElems := map[hasher.Hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -47,12 +48,12 @@ func TestElems(t *testing.T) {
 }
 
 func TestDiff(t *testing.T) {
-	set1 := InitGSet[hint]()
+	set1 := InitGSet[hasher.Hint]()
 	set1.Insert(1)
 	set1.Insert(2)
 	set1.Insert(3)
 
-	set2 := InitGSet[hint]()
+	set2 := InitGSet[hasher.Hint]()
 	set2.Insert(1)
 	set2.Insert(2)
 
@@ -60,7 +61,7 @@ func TestDiff(t *testing.T) {
 
 	actualElems := setDiff.data
 
-	expectedElems := map[hint]struct{}{
+	expectedElems := map[hasher.Hint]struct{}{
 		3: {},
 	}
 
@@ -70,12 +71,12 @@ func TestDiff(t *testing.T) {
 }
 
 func TestIn(t *testing.T) {
-	set := InitGSet[hint]()
+	set := InitGSet[hasher.Hint]()
 	set.Insert(1)
 	set.Insert(2)
 	set.Insert(3)
 
-	expectedElems := map[hint]struct{}{
+	expectedElems := map[hasher.Hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -89,14 +90,14 @@ func TestIn(t *testing.T) {
 }
 
 func TestSplit(t *testing.T) {
-	set := InitGSet[hint]()
+	set := InitGSet[hasher.Hint]()
 	set.Insert(1)
 	set.Insert(2)
 	set.Insert(3)
 
 	actualDecomps := set.Split()
 
-	expectedDecomps := map[hint]struct{}{
+	expectedDecomps := map[hasher.Hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -121,12 +122,12 @@ func TestSplit(t *testing.T) {
 }
 
 func TestJoinSubset(t *testing.T) {
-	set1 := InitGSet[hint]()
+	set1 := InitGSet[hasher.Hint]()
 	set1.Insert(1)
 	set1.Insert(2)
 	set1.Insert(3)
 
-	set2 := InitGSet[hint]()
+	set2 := InitGSet[hasher.Hint]()
 	set2.Insert(1)
 	set2.Insert(2)
 
@@ -134,7 +135,7 @@ func TestJoinSubset(t *testing.T) {
 
 	actualElems := set1.Elems()
 
-	expectedElems := map[hint]struct{}{
+	expectedElems := map[hasher.Hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -146,12 +147,12 @@ func TestJoinSubset(t *testing.T) {
 }
 
 func TestJoinOverlapping(t *testing.T) {
-	set1 := InitGSet[hint]()
+	set1 := InitGSet[hasher.Hint]()
 	set1.Insert(1)
 	set1.Insert(2)
 	set1.Insert(3)
 
-	set2 := InitGSet[hint]()
+	set2 := InitGSet[hasher.Hint]()
 	set2.Insert(3)
 	set2.Insert(4)
 
@@ -159,7 +160,7 @@ func TestJoinOverlapping(t *testing.T) {
 
 	actualElems := set1.Elems()
 
-	expectedElems := map[hint]struct{}{
+	expectedElems := map[hasher.Hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -172,12 +173,12 @@ func TestJoinOverlapping(t *testing.T) {
 }
 
 func TestJoinDisjoint(t *testing.T) {
-	set1 := InitGSet[hint]()
+	set1 := InitGSet[hasher.Hint]()
 	set1.Insert(1)
 	set1.Insert(2)
 	set1.Insert(3)
 
-	set2 := InitGSet[hint]()
+	set2 := InitGSet[hasher.Hint]()
 	set2.Insert(4)
 	set2.Insert(5)
 
@@ -185,7 +186,7 @@ func TestJoinDisjoint(t *testing.T) {
 
 	actualElems := set1.Elems()
 
-	expectedElems := map[hint]struct{}{
+	expectedElems := map[hasher.Hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -199,13 +200,13 @@ func TestJoinDisjoint(t *testing.T) {
 }
 
 func TestJoinDecompositionHash(t *testing.T) {
-	set := InitGSet[hint]()
+	set := InitGSet[hasher.Hint]()
 	set.Insert(1)
 	set.Insert(2)
 	set.Insert(3)
 
 	actualDecomps := set.Split()
-	expectedDecomps := []hint{1, 2, 3}
+	expectedDecomps := []hasher.Hint{1, 2, 3}
 
 	if len(actualDecomps) != len(expectedDecomps) {
 		t.Errorf("expected %d decompositions, got %d", len(expectedDecomps), len(actualDecomps))

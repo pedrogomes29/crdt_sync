@@ -1,4 +1,4 @@
-package main
+package hasher
 
 import (
 	"crypto/sha256"
@@ -9,10 +9,10 @@ type Hasher interface {
 	Hash() []byte
 }
 
-type hint int
-type hstring string
+type Hint int
+type Hstring string
 
-func (x hint) Hash() []byte {
+func (x Hint) Hash() []byte {
 	hasher := sha256.New()
 
 	binaryInt := make([]byte, 4)
@@ -23,7 +23,7 @@ func (x hint) Hash() []byte {
 	return hasher.Sum(nil)
 }
 
-func (h hstring) Hash() []byte {
+func (h Hstring) Hash() []byte {
 	hasher := sha256.New()
 	hasher.Write([]byte(h))
 	return hasher.Sum(nil)

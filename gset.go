@@ -1,7 +1,5 @@
 package main
 
-import "hash/maphash"
-
 type ComparableHashable interface {
 	comparable
 	Hasher
@@ -24,12 +22,12 @@ func InitGSetDecomp[T ComparableHashable](irrElem T) *GSetDecomposition[T] {
 	gset.data[irrElem] = struct{}{}
 	return gset
 }
-func (gset *GSetDecomposition[T]) Hash() uint64 {
-	var h maphash.Hash
+func (gset *GSetDecomposition[T]) Hash() []byte {
 	for key := range gset.data {
-		h.Write(key.Hash())
+		return key.Hash()
 	}
-	return h.Sum64()
+
+	return nil
 }
 
 func InitGSet[T ComparableHashable]() *GSet[T] {

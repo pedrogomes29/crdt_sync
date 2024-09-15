@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 )
@@ -95,17 +96,17 @@ func TestSplit(t *testing.T) {
 
 	actualDecomps := set.Split()
 
-	expectedDecomp := map[hint]struct{}{
+	expectedDecomps := map[hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
 	}
 
-	if len(actualDecomps) != len(expectedDecomp) {
-		t.Errorf("expected %d decompositions, got %d", len(expectedDecomp), len(actualDecomps))
+	if len(actualDecomps) != len(expectedDecomps) {
+		t.Errorf("expected %d decompositions, got %d", len(expectedDecomps), len(actualDecomps))
 	}
 
-	for expectedElem := range expectedDecomp {
+	for expectedElem := range expectedDecomps {
 		found := false
 		for _, gset := range actualDecomps {
 			if _, ok := gset.data[expectedElem]; ok {
@@ -194,5 +195,32 @@ func TestJoinDisjoint(t *testing.T) {
 
 	if !reflect.DeepEqual(actualElems, expectedElems) {
 		t.Errorf("Expected set %v, but got %v", expectedElems, actualElems)
+	}
+}
+
+func TestJoinDecompositionHash(t *testing.T) {
+	set := InitGSet[hint]()
+	set.Insert(1)
+	set.Insert(2)
+	set.Insert(3)
+
+	actualDecomps := set.Split()
+	expectedDecomps := []hint{1, 2, 3}
+
+	if len(actualDecomps) != len(expectedDecomps) {
+		t.Errorf("expected %d decompositions, got %d", len(expectedDecomps), len(actualDecomps))
+	}
+
+	for _, expectedDecomp := range expectedDecomps {
+		found := false
+
+		for _, actualDecomp := range actualDecomps {
+			if bytes.Equal(actualDecomp.Hash(), expectedDecomp.Hash()) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected hash of element %d not found in actual decomposition hashes", expectedDecomp)
+		}
 	}
 }

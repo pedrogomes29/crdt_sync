@@ -18,11 +18,13 @@ func (x hint) Hash() []byte {
 	binaryInt := make([]byte, 4)
 	binary.BigEndian.PutUint32(binaryInt, uint32(x))
 
+	hasher.Write(binaryInt)
+
 	return hasher.Sum(nil)
 }
 
 func (h hstring) Hash() []byte {
-	hf := sha256.New()
-	hf.Write([]byte(h))
-	return hf.Sum(nil)
+	hasher := sha256.New()
+	hasher.Write([]byte(h))
+	return hasher.Sum(nil)
 }

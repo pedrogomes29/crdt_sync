@@ -57,13 +57,28 @@ func TestSplit(t *testing.T) {
 
 	actualDecomps := set.Split()
 
-	var expectedDecomps []GSet[int]
-	expectedDecomps = append(expectedDecomps, *InitGSetWithIrrElem(1))
-	expectedDecomps = append(expectedDecomps, *InitGSetWithIrrElem(2))
-	expectedDecomps = append(expectedDecomps, *InitGSetWithIrrElem(3))
-
-	if !reflect.DeepEqual(actualDecomps, expectedDecomps) {
-		t.Errorf("Expected set %v, but got %v", actualDecomps, expectedDecomps)
+	expectedDecomp := map[int]struct{}{
+		1: {},
+		2: {},
+		3: {},
 	}
 
+	if len(actualDecomps) != len(expectedDecomp) {
+		t.Errorf("expected %d decompositions, got %d", len(expectedDecomp), len(actualDecomps))
+	}
+
+	for expectedElem := range expectedDecomp {
+		found := false
+		for _, gset := range actualDecomps {
+			elems := gset.Elems()
+			if _, ok := elems[expectedElem]; ok {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected element %d not found in actual decompositions", expectedElem)
+		}
+	}
 }
+

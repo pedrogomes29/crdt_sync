@@ -4,11 +4,16 @@ type GSet[T comparable] struct {
 	data map[T]struct{}
 }
 
-func InitGSetWithIrrElem[T comparable](irrElem T) *GSet[T] {
-	gset := &GSet[T]{
-		data: make(map[T]struct{}),
-	}
+type GSetDecomposition[T comparable] struct{
+	GSet[T]
+}
 
+func InitGSetDecomp[T comparable](irrElem T) *GSetDecomposition[T] {
+	gset := &GSetDecomposition[T]{
+		GSet: GSet[T]{
+			data: make(map[T]struct{}),
+		},
+	}
 	gset.data[irrElem] = struct{}{}
 	return gset
 }
@@ -34,10 +39,12 @@ func (set *GSet[T]) Insert(elem T) GSet[T] {
 	return set.Diff(oldSet)
 }
 
-func (set *GSet[T]) Split() []GSet[T] {
-	var joinDecompositions []GSet[T]
+func (set *GSet[T]) Split() []GSetDecomposition[T]{
+	//Go doesn't allow custom types to implement comparable, so set[GSet[T]] isn't allowed
+	//because of this, decompositions are returned in a random order
+	var joinDecompositions []GSetDecomposition[T]
 	for elem := range set.data {
-		joinDecomposition := InitGSetWithIrrElem[T](elem)
+		joinDecomposition := InitGSetDecomp[T](elem)
 		joinDecompositions = append(joinDecompositions, *joinDecomposition)
 	}
 	return joinDecompositions

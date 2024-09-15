@@ -6,7 +6,7 @@ import (
 )
 
 func TestInsert(t *testing.T) {
-	gset := InitGSet[int]()
+	gset := InitGSet[hint]()
 	gset.Insert(1)
 	gset.Insert(1)
 	gset.Insert(2)
@@ -14,7 +14,7 @@ func TestInsert(t *testing.T) {
 
 	actualElems := gset.data
 
-	expectedElems := map[int]struct{}{
+	expectedElems := map[hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -26,7 +26,7 @@ func TestInsert(t *testing.T) {
 }
 
 func TestElems(t *testing.T) {
-	gset := InitGSet[int]()
+	gset := InitGSet[hint]()
 	gset.Insert(1)
 	gset.Insert(1)
 	gset.Insert(2)
@@ -34,7 +34,7 @@ func TestElems(t *testing.T) {
 
 	actualElems := gset.Elems()
 
-	expectedElems := map[int]struct{}{
+	expectedElems := map[hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -46,12 +46,12 @@ func TestElems(t *testing.T) {
 }
 
 func TestDiff(t *testing.T) {
-	set1 := InitGSet[int]()
+	set1 := InitGSet[hint]()
 	set1.Insert(1)
 	set1.Insert(2)
 	set1.Insert(3)
 
-	set2 := InitGSet[int]()
+	set2 := InitGSet[hint]()
 	set2.Insert(1)
 	set2.Insert(2)
 
@@ -59,7 +59,7 @@ func TestDiff(t *testing.T) {
 
 	actualElems := setDiff.data
 
-	expectedElems := map[int]struct{}{
+	expectedElems := map[hint]struct{}{
 		3: {},
 	}
 
@@ -69,12 +69,12 @@ func TestDiff(t *testing.T) {
 }
 
 func TestIn(t *testing.T) {
-	set := InitGSet[int]()
+	set := InitGSet[hint]()
 	set.Insert(1)
 	set.Insert(2)
 	set.Insert(3)
 
-	expectedElems := map[int]struct{}{
+	expectedElems := map[hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -88,14 +88,14 @@ func TestIn(t *testing.T) {
 }
 
 func TestSplit(t *testing.T) {
-	set := InitGSet[int]()
+	set := InitGSet[hint]()
 	set.Insert(1)
 	set.Insert(2)
 	set.Insert(3)
 
 	actualDecomps := set.Split()
 
-	expectedDecomp := map[int]struct{}{
+	expectedDecomp := map[hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -120,12 +120,12 @@ func TestSplit(t *testing.T) {
 }
 
 func TestJoinSubset(t *testing.T) {
-	set1 := InitGSet[int]()
+	set1 := InitGSet[hint]()
 	set1.Insert(1)
 	set1.Insert(2)
 	set1.Insert(3)
 
-	set2 := InitGSet[int]()
+	set2 := InitGSet[hint]()
 	set2.Insert(1)
 	set2.Insert(2)
 
@@ -133,7 +133,7 @@ func TestJoinSubset(t *testing.T) {
 
 	actualElems := set1.Elems()
 
-	expectedElems := map[int]struct{}{
+	expectedElems := map[hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -145,12 +145,12 @@ func TestJoinSubset(t *testing.T) {
 }
 
 func TestJoinOverlapping(t *testing.T) {
-	set1 := InitGSet[int]()
+	set1 := InitGSet[hint]()
 	set1.Insert(1)
 	set1.Insert(2)
 	set1.Insert(3)
 
-	set2 := InitGSet[int]()
+	set2 := InitGSet[hint]()
 	set2.Insert(3)
 	set2.Insert(4)
 
@@ -158,7 +158,7 @@ func TestJoinOverlapping(t *testing.T) {
 
 	actualElems := set1.Elems()
 
-	expectedElems := map[int]struct{}{
+	expectedElems := map[hint]struct{}{
 		1: {},
 		2: {},
 		3: {},
@@ -171,12 +171,12 @@ func TestJoinOverlapping(t *testing.T) {
 }
 
 func TestJoinDisjoint(t *testing.T) {
-	set1 := InitGSet[int]()
+	set1 := InitGSet[hint]()
 	set1.Insert(1)
 	set1.Insert(2)
 	set1.Insert(3)
 
-	set2 := InitGSet[int]()
+	set2 := InitGSet[hint]()
 	set2.Insert(4)
 	set2.Insert(5)
 
@@ -184,7 +184,7 @@ func TestJoinDisjoint(t *testing.T) {
 
 	actualElems := set1.Elems()
 
-	expectedElems := map[int]struct{}{
+	expectedElems := map[hint]struct{}{
 		1: {},
 		2: {},
 		3: {},

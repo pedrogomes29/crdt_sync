@@ -1,14 +1,21 @@
 package main
 
-type GSet[T comparable] struct {
+import "hash/maphash"
+
+type ComparableHashable interface {
+	comparable
+	Hasher
+}
+
+type GSet[T ComparableHashable] struct {
 	data map[T]struct{}
 }
 
-type GSetDecomposition[T comparable] struct {
+type GSetDecomposition[T ComparableHashable] struct {
 	GSet[T]
 }
 
-func InitGSetDecomp[T comparable](irrElem T) *GSetDecomposition[T] {
+func InitGSetDecomp[T ComparableHashable](irrElem T) *GSetDecomposition[T] {
 	gset := &GSetDecomposition[T]{
 		GSet: GSet[T]{
 			data: make(map[T]struct{}),
@@ -17,8 +24,15 @@ func InitGSetDecomp[T comparable](irrElem T) *GSetDecomposition[T] {
 	gset.data[irrElem] = struct{}{}
 	return gset
 }
+func (gset *GSetDecomposition[T]) Hash() uint64 {
+	var h maphash.Hash
+	for key := range gset.data {
+		h.Write(key.Hash())
+	}
+	return h.Sum64()
+}
 
-func InitGSet[T comparable]() *GSet[T] {
+func InitGSet[T ComparableHashable]() *GSet[T] {
 	return &GSet[T]{
 		data: make(map[T]struct{}),
 	}

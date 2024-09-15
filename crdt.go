@@ -1,7 +1,12 @@
 package main
 
 type CRDT interface {
-	split() []CRDT
+	split() []CRDTDecomposition
 	join(CRDT)
 	diff(CRDT) CRDT
+}
+
+type CRDTDecomposition interface {
+	CRDT
+	Hasher
 }

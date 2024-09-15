@@ -118,3 +118,81 @@ func TestSplit(t *testing.T) {
 		}
 	}
 }
+
+func TestJoinSubset(t *testing.T) {
+	set1 := InitGSet[int]()
+	set1.Insert(1)
+	set1.Insert(2)
+	set1.Insert(3)
+
+	set2 := InitGSet[int]()
+	set2.Insert(1)
+	set2.Insert(2)
+
+	set1.Join(*set2)
+
+	actualElems := set1.Elems()
+
+	expectedElems := map[int]struct{}{
+		1: {},
+		2: {},
+		3: {},
+	}
+
+	if !reflect.DeepEqual(actualElems, expectedElems) {
+		t.Errorf("Expected set %v, but got %v", expectedElems, actualElems)
+	}
+}
+
+func TestJoinOverlapping(t *testing.T) {
+	set1 := InitGSet[int]()
+	set1.Insert(1)
+	set1.Insert(2)
+	set1.Insert(3)
+
+	set2 := InitGSet[int]()
+	set2.Insert(3)
+	set2.Insert(4)
+
+	set1.Join(*set2)
+
+	actualElems := set1.Elems()
+
+	expectedElems := map[int]struct{}{
+		1: {},
+		2: {},
+		3: {},
+		4: {},
+	}
+
+	if !reflect.DeepEqual(actualElems, expectedElems) {
+		t.Errorf("Expected set %v, but got %v", expectedElems, actualElems)
+	}
+}
+
+func TestJoinDisjoint(t *testing.T) {
+	set1 := InitGSet[int]()
+	set1.Insert(1)
+	set1.Insert(2)
+	set1.Insert(3)
+
+	set2 := InitGSet[int]()
+	set2.Insert(4)
+	set2.Insert(5)
+
+	set1.Join(*set2)
+
+	actualElems := set1.Elems()
+
+	expectedElems := map[int]struct{}{
+		1: {},
+		2: {},
+		3: {},
+		4: {},
+		5: {},
+	}
+
+	if !reflect.DeepEqual(actualElems, expectedElems) {
+		t.Errorf("Expected set %v, but got %v", expectedElems, actualElems)
+	}
+}

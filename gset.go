@@ -4,7 +4,7 @@ type GSet[T comparable] struct {
 	data map[T]struct{}
 }
 
-type GSetDecomposition[T comparable] struct{
+type GSetDecomposition[T comparable] struct {
 	GSet[T]
 }
 
@@ -39,7 +39,7 @@ func (set *GSet[T]) Insert(elem T) GSet[T] {
 	return set.Diff(oldSet)
 }
 
-func (set *GSet[T]) Split() []GSetDecomposition[T]{
+func (set *GSet[T]) Split() []GSetDecomposition[T] {
 	//Go doesn't allow custom types to implement comparable, so set[GSet[T]] isn't allowed
 	//because of this, decompositions are returned in a random order
 	var joinDecompositions []GSetDecomposition[T]

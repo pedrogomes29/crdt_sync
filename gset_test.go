@@ -12,6 +12,26 @@ func TestInsert(t *testing.T) {
 	gset.Insert(2)
 	gset.Insert(3)
 
+	actualElems := gset.data
+
+	expectedElems := map[int]struct{}{
+		1: {},
+		2: {},
+		3: {},
+	}
+
+	if !reflect.DeepEqual(actualElems, expectedElems) {
+		t.Errorf("Expected set %v, but got %v", expectedElems, actualElems)
+	}
+}
+
+func TestElems(t *testing.T) {
+	gset := InitGSet[int]()
+	gset.Insert(1)
+	gset.Insert(1)
+	gset.Insert(2)
+	gset.Insert(3)
+
 	actualElems := gset.Elems()
 
 	expectedElems := map[int]struct{}{
@@ -20,7 +40,6 @@ func TestInsert(t *testing.T) {
 		3: {},
 	}
 
-	// Compare the two sets using reflect.DeepEqual
 	if !reflect.DeepEqual(actualElems, expectedElems) {
 		t.Errorf("Expected set %v, but got %v", expectedElems, actualElems)
 	}
@@ -38,7 +57,7 @@ func TestDiff(t *testing.T) {
 
 	setDiff := set1.Diff(*set2)
 
-	actualElems := setDiff.Elems()
+	actualElems := setDiff.data
 
 	expectedElems := map[int]struct{}{
 		3: {},
@@ -46,6 +65,25 @@ func TestDiff(t *testing.T) {
 
 	if !reflect.DeepEqual(actualElems, expectedElems) {
 		t.Errorf("Expected set %v, but got %v", expectedElems, actualElems)
+	}
+}
+
+func TestIn(t *testing.T) {
+	set := InitGSet[int]()
+	set.Insert(1)
+	set.Insert(2)
+	set.Insert(3)
+
+	expectedElems := map[int]struct{}{
+		1: {},
+		2: {},
+		3: {},
+	}
+
+	for expectedElem := range expectedElems {
+		if !set.In(expectedElem) {
+			t.Errorf("expected %d to be in the set", expectedElem)
+		}
 	}
 }
 
@@ -70,8 +108,7 @@ func TestSplit(t *testing.T) {
 	for expectedElem := range expectedDecomp {
 		found := false
 		for _, gset := range actualDecomps {
-			elems := gset.Elems()
-			if _, ok := elems[expectedElem]; ok {
+			if _, ok := gset.data[expectedElem]; ok {
 				found = true
 				break
 			}
@@ -81,4 +118,3 @@ func TestSplit(t *testing.T) {
 		}
 	}
 }
-

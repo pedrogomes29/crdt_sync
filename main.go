@@ -1,9 +1,18 @@
 package main
 
-import "fmt"
+import (
+	"crdt_sync/hasher"
+	"crdt_sync/prolly"
+	"fmt"
+	"strconv"
+)
 
 func main() {
-	var x int
-	x = 1
-	fmt.Println(x)
+	var kvPairs []prolly.KVPair[hasher.Hstring, hasher.Hint]
+	for i := 0; i < 10; i++ {
+		kvPairs = append(kvPairs, *prolly.InitKVPair(hasher.Hstring("OLA "+strconv.Itoa(i)), hasher.Hint(i)))
+	}
+
+	tree := prolly.InitProllyTree(kvPairs)
+	fmt.Printf("%s", tree.String())
 }

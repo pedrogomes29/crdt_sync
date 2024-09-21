@@ -24,12 +24,11 @@ func InitGSetDecomp[T ComparableHashable](irrElem T) *GSetDecomposition[T] {
 	gset.data[irrElem] = struct{}{}
 	return gset
 }
-func (gset *GSetDecomposition[T]) Hash() []byte {
+func (gset *GSetDecomposition[T]) Hash() [32]byte {
 	for key := range gset.data {
 		return key.Hash()
 	}
-
-	return nil
+	panic("Expected non empty decomposition")
 }
 
 func InitGSet[T ComparableHashable]() *GSet[T] {

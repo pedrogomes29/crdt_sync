@@ -97,12 +97,11 @@ func InitGSetDecomp[T ComparableHashable](irrElem T) *GSetDecomposition[T] <span
         gset.data[irrElem] = struct{}{}
         return gset
 }</span>
-func (gset *GSetDecomposition[T]) Hash() []byte <span class="cov8" title="1">{
+func (gset *GSetDecomposition[T]) Hash() [32]byte <span class="cov8" title="1">{
         for key := range gset.data </span><span class="cov8" title="1">{
                 return key.Hash()
         }</span>
-
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov0" title="0">panic("Expected non empty decomposition")</span>
 }
 
 func InitGSet[T ComparableHashable]() *GSet[T] <span class="cov8" title="1">{
@@ -165,27 +164,29 @@ import (
 )
 
 type Hasher interface {
-        Hash() []byte
+        Hash(seed ...byte) [32]byte
 }
 
 type Hint int
 type Hstring string
 
-func (x Hint) Hash() []byte <span class="cov8" title="1">{
-        hasher := sha256.New()
-
+func (x Hint) Hash(seed ...byte) [32]byte <span class="cov8" title="1">{
         binaryInt := make([]byte, 4)
         binary.BigEndian.PutUint32(binaryInt, uint32(x))
 
-        hasher.Write(binaryInt)
-
-        return hasher.Sum(nil)
+        data := append(
+                seed,
+                binaryInt...
+        )
+        return sha256.Sum256(data)
 }</span>
 
-func (h Hstring) Hash() []byte <span class="cov8" title="1">{
-        hasher := sha256.New()
-        hasher.Write([]byte(h))
-        return hasher.Sum(nil)
+func (h Hstring) Hash(seed ...byte) [32]byte <span class="cov8" title="1">{
+        data := append(
+                seed,
+                []byte(h)...
+        )
+        return sha256.Sum256(data)
 }</span>
 </pre>
 		

@@ -1,7 +1,6 @@
 package gset
 
 import (
-	"bytes"
 	"crdt_sync/hasher"
 	"reflect"
 	"testing"
@@ -216,7 +215,7 @@ func TestJoinDecompositionHash(t *testing.T) {
 		found := false
 
 		for _, actualDecomp := range actualDecomps {
-			if bytes.Equal(actualDecomp.Hash(), expectedDecomp.Hash()) {
+			if actualDecomp.Hash() == expectedDecomp.Hash() {
 				found = true
 			}
 		}

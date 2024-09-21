@@ -137,10 +137,9 @@ func (pt ProllyTree[K, V]) String() string {
 	var queue [][32]byte
 	sb.WriteString("\nTree:\n")
 	queue = append(queue, pt.rootAddress)
-	for len(queue) > 0 {
-
+	for len(queue) > 0 {//bfs
 		nodeCount := len(queue)
-		for nodeCount > 0 {
+		for nodeCount > 0 { //visit all nodes at the current depth
 			address := queue[0]
 			queue = queue[1:]
 
@@ -180,4 +179,8 @@ func (pt ProllyTreeNode[K]) Hash(seed ...byte) [32]byte {
 	}
 
 	return sha256.Sum256(data)
+}
+
+
+func (pt ProllyTreeNode[K]) Hash(seed ...byte) [32]byte {
 }

@@ -52,9 +52,9 @@ type ProllyTree[K hasher.Hasher, V hasher.Hasher] struct {
 	kvStore     map[string]interface{}
 }
 
-func (k KAddrPair[K]) CheckBoundary(level hasher.Hint) bool {
+func (pair KAddrPair[K]) CheckBoundary(level hasher.Hint) bool {
 	levelHash := level.Hash()
-	keyHash := k.key.Hash(levelHash[:]...)
+	keyHash := pair.key.Hash(levelHash[:]...)
 	var hashInt big.Int
 	hashInt.SetBytes(keyHash[:])
 
@@ -168,10 +168,10 @@ func (pt ProllyTree[K, V]) String() string {
 	return sb.String()
 }
 
-func (pt ProllyTreeNode[K]) Hash(seed ...byte) [32]byte {
+func (node ProllyTreeNode[K]) Hash(seed ...byte) [32]byte {
 	data := seed
 
-	for _, kvPair := range pt.children {
+	for _, kvPair := range node.children {
 		keyHash := kvPair.key.Hash()
 
 		data = append(data, keyHash[:]...)
@@ -179,8 +179,4 @@ func (pt ProllyTreeNode[K]) Hash(seed ...byte) [32]byte {
 	}
 
 	return sha256.Sum256(data)
-}
-
-
-func (pt ProllyTreeNode[K]) Hash(seed ...byte) [32]byte {
 }

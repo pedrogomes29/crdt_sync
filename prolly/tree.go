@@ -235,10 +235,10 @@ func GetAllLeafs[K hasher.Hasher, V hasher.Hasher](nodes []ProllyTreeNode[K, V],
 	return children
 }
 
-func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTreeNode[K, V], t2Nodes []ProllyTreeNode[K, V], t1KvStore KVStore, t2KvStore KVStore) (t1DiffChildren []KAddrPair[K, V], t2DiffChildren []KAddrPair[K, V]) {
+func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTreeNode[K, V], t2Nodes []ProllyTreeNode[K, V], t1KvStore KVStore, t2KvStore KVStore) (t1ExceptT2Pairs []KAddrPair[K, V], t2ExceptT1Pairs []KAddrPair[K, V]) {
+	t1NodeIdx, t2NodeIdx := 0, 0
 	t1NodeChildIdx, t2NodeChildIdx := 0, 0
-	//TODO: handle different number of nodes and children per nodes
-	for t1NodeIdx, t2NodeIdx := 0, 0; t1NodeIdx < len(t1Nodes) && t2NodeIdx < len(t2Nodes); {
+	for t1NodeIdx < len(t1Nodes) && t2NodeIdx < len(t2Nodes) {
 		t1Node := t1Nodes[t1NodeIdx]
 		t2Node := t2Nodes[t2NodeIdx]
 		for t1NodeChildIdx < len(t1Nodes) && t2NodeChildIdx < len(t2Nodes) {
@@ -247,16 +247,16 @@ func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTree
 
 			if t1NodeChild.key.Hash() == t2NodeChild.key.Hash() {
 				if t1NodeChild.valueAddress != t2NodeChild.valueAddress {
-					t1DiffChildren = append(t1DiffChildren, t1NodeChild)
-					t2DiffChildren = append(t2DiffChildren, t2NodeChild)
+					t1ExceptT2Pairs = append(t1ExceptT2Pairs, t1NodeChild)
+					t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2NodeChild)
 				}
 				t1NodeChildIdx++
 				t2NodeChildIdx++
 			} else if t1NodeChild.Less(t2NodeChild) {
-				t1DiffChildren = append(t1DiffChildren, t1NodeChild)
+				t1ExceptT2Pairs = append(t1ExceptT2Pairs, t1NodeChild)
 				t1NodeChildIdx++
 			} else {
-				t2DiffChildren = append(t2DiffChildren, t2NodeChild)
+				t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2NodeChild)
 				t2NodeChildIdx++
 			}
 		}
@@ -269,6 +269,8 @@ func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTree
 			t2NodeIdx++
 		}
 	}
+	//TODO: handle different number of nodes and children per nodes
+
 	return
 }
 
@@ -277,17 +279,17 @@ func FindNodesDiff[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTreeNode[K,
 	t2NodesAreLeafs := t2Nodes[0].children[0].isLeaf(t2KvStore)
 	if t1NodesAreLeafs && t2NodesAreLeafs {
 		t1DiffKAddrPairs, t2DiffKAddrPairs := FindNonMatchingPairs(t1Nodes, t2Nodes, t1KvStore, t2KvStore)
-		var pairsT1ExceptT2 []KVPair[K, V]
-		var pairsT2ExceptT1 []KVPair[K, V]
+		var t1ExceptT2pairs []KVPair[K, V]
+		var t2ExceptT1Pairs []KVPair[K, V]
 
 		for _, t1DiffKAddrPair := range t1DiffKAddrPairs {
-			pairsT1ExceptT2 = append(pairsT1ExceptT2, t1DiffKAddrPair.getKVPair(t1KvStore))
+			t1ExceptT2pairs = append(t1ExceptT2pairs, t1DiffKAddrPair.getKVPair(t1KvStore))
 		}
 		for _, t2DiffKAddrPair := range t2DiffKAddrPairs {
-			pairsT2ExceptT1 = append(pairsT2ExceptT1, t2DiffKAddrPair.getKVPair(t2KvStore))
+			t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2DiffKAddrPair.getKVPair(t2KvStore))
 		}
 
-		return pairsT1ExceptT2, pairsT2ExceptT1
+		return t1ExceptT2pairs, t2ExceptT1Pairs
 	}
 
 	var newT1Nodes []ProllyTreeNode[K, V]

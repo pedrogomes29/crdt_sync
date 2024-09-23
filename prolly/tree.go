@@ -182,7 +182,7 @@ func (tree ProllyTree[K, V]) String() string {
 					queue = append(queue, child.valueAddress)
 				}
 			case V:
-				sb.WriteString(fmt.Sprintf("%s", addressee))
+				sb.WriteString(fmt.Sprintf("%v", addressee))
 			default:
 				panic(fmt.Sprintf("Type unknown: %T\n", addressee))
 			}
@@ -214,7 +214,7 @@ func (t1 ProllyTree[K, V]) Diff(t2 ProllyTree[K, V]) ([]KVPair[K, V], []KVPair[K
 	}
 
 	t1Root := t1.kvStore.Get(t1.rootAddress).(ProllyTreeNode[K, V])
-	t2Root := t1.kvStore.Get(t2.rootAddress).(ProllyTreeNode[K, V])
+	t2Root := t2.kvStore.Get(t2.rootAddress).(ProllyTreeNode[K, V])
 
 	return FindNodesDiff([]ProllyTreeNode[K, V]{t1Root}, []ProllyTreeNode[K, V]{t2Root}, t1.kvStore, t2.kvStore)
 }
@@ -232,7 +232,7 @@ func GetAllLeafs[K hasher.Hasher, V hasher.Hasher](nodes []ProllyTreeNode[K, V],
 		}
 	}
 
-	return children
+	return GetAllLeafs(children, kvStore)
 }
 
 func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTreeNode[K, V], t2Nodes []ProllyTreeNode[K, V], t1KvStore KVStore, t2KvStore KVStore) (t1ExceptT2Pairs []KAddrPair[K, V], t2ExceptT1Pairs []KAddrPair[K, V]) {
@@ -241,7 +241,7 @@ func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTree
 	for t1NodeIdx < len(t1Nodes) && t2NodeIdx < len(t2Nodes) {
 		t1Node := t1Nodes[t1NodeIdx]
 		t2Node := t2Nodes[t2NodeIdx]
-		for t1NodeChildIdx < len(t1Nodes) && t2NodeChildIdx < len(t2Nodes) {
+		for t1NodeChildIdx < len(t1Node.children) && t2NodeChildIdx < len(t2Node.children) {
 			t1NodeChild := t1Node.children[t1NodeChildIdx]
 			t2NodeChild := t2Node.children[t2NodeChildIdx]
 
@@ -269,8 +269,21 @@ func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTree
 			t2NodeIdx++
 		}
 	}
-	//TODO: handle different number of nodes and children per nodes
 
+	for t1NodeIdx < len(t1Nodes) {
+		t1Node := t1Nodes[t1NodeIdx]
+		for t1NodeChildIdx < len(t1Node.children) {
+			t1NodeChild := t1Node.children[t1NodeChildIdx]
+			t1ExceptT2Pairs = append(t1ExceptT2Pairs, t1NodeChild)
+		}
+	}
+	for t2NodeIdx < len(t2Nodes) {
+		t2Node := t2Nodes[t2NodeIdx]
+		for t2NodeChildIdx < len(t2Node.children) {
+			t2NodeChild := t2Node.children[t2NodeChildIdx]
+			t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2NodeChild)
+		}
+	}
 	return
 }
 

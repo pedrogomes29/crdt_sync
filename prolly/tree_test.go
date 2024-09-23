@@ -4,6 +4,7 @@ import (
 	"crdt_sync/hasher"
 	"reflect"
 	"sort"
+	"strconv"
 	"testing"
 )
 
@@ -28,36 +29,19 @@ func AreSlicesEqual(a, b []KVPair[hasher.Hstring, hasher.Hint]) bool {
 	return reflect.DeepEqual(a, b)
 }
 
+func GenerateKVPairs(nrPairs int) []KVPair[hasher.Hstring, hasher.Hint] {
+	var kvPairs []KVPair[hasher.Hstring, hasher.Hint]
+	for i := 0; i < nrPairs; i++ {
+		kvPairs = append(kvPairs, *InitKVPair(hasher.Hstring("OLA "+strconv.Itoa(i)), hasher.Hint(i)))
+	}
+
+	return kvPairs
+}
+
 func TestDiffSameTree(t *testing.T) {
-	var kvPairs1 []KVPair[hasher.Hstring, hasher.Hint]
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 1"), hasher.Hint(1)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 2"), hasher.Hint(2)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 3"), hasher.Hint(3)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 4"), hasher.Hint(4)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 5"), hasher.Hint(5)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 6"), hasher.Hint(6)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 7"), hasher.Hint(7)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 8"), hasher.Hint(8)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 9"), hasher.Hint(9)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 10"), hasher.Hint(10)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 11"), hasher.Hint(11)))
-
-	tree1 := InitProllyTree(kvPairs1)
-
-	var kvPairs2 []KVPair[hasher.Hstring, hasher.Hint]
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 4"), hasher.Hint(4)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 2"), hasher.Hint(2)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 3"), hasher.Hint(3)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 1"), hasher.Hint(1)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 11"), hasher.Hint(11)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 9"), hasher.Hint(9)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 7"), hasher.Hint(7)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 8"), hasher.Hint(8)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 5"), hasher.Hint(5)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 10"), hasher.Hint(10)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 6"), hasher.Hint(6)))
-
-	tree2 := InitProllyTree(kvPairs2)
+	kvPairs := GenerateKVPairs(11)
+	tree1 := InitProllyTree(kvPairs, 3)
+	tree2 := InitProllyTree(kvPairs, 3)
 
 	t1ExceptT2, t2ExceptT1 := tree1.Diff(*tree2)
 
@@ -68,41 +52,17 @@ func TestDiffSameTree(t *testing.T) {
 }
 
 func TestDiffDifferentTrees(t *testing.T) {
-	var kvPairs1 []KVPair[hasher.Hstring, hasher.Hint]
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 3"), hasher.Hint(3)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 4"), hasher.Hint(4)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 5"), hasher.Hint(5)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 6"), hasher.Hint(6)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 7"), hasher.Hint(7)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 8"), hasher.Hint(8)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 9"), hasher.Hint(9)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 10"), hasher.Hint(10)))
-	kvPairs1 = append(kvPairs1, *InitKVPair(hasher.Hstring("OLA 11"), hasher.Hint(11)))
+	kvPairs := GenerateKVPairs(100000)
+	kvPairs1 := kvPairs[1000:]
+	tree1 := InitProllyTree(kvPairs1, 3)
 
-	tree1 := InitProllyTree(kvPairs1)
-
-	var kvPairs2 []KVPair[hasher.Hstring, hasher.Hint]
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 4"), hasher.Hint(4)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 2"), hasher.Hint(2)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 3"), hasher.Hint(3)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 1"), hasher.Hint(1)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 9"), hasher.Hint(9)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 7"), hasher.Hint(7)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 8"), hasher.Hint(8)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 5"), hasher.Hint(5)))
-	kvPairs2 = append(kvPairs2, *InitKVPair(hasher.Hstring("OLA 6"), hasher.Hint(6)))
-
-	tree2 := InitProllyTree(kvPairs2)
+	kvPairs2 := kvPairs[:len(kvPairs)-5000]
+	tree2 := InitProllyTree(kvPairs2, 3)
 
 	actualT1ExceptT2, actualT2ExceptT1 := tree1.Diff(*tree2)
-	expectedT1ExceptT2 := []KVPair[hasher.Hstring, hasher.Hint]{
-		*InitKVPair(hasher.Hstring("OLA 10"), hasher.Hint(10)),
-		*InitKVPair(hasher.Hstring("OLA 11"), hasher.Hint(11)),
-	}
-	expectedT2ExceptT1 := []KVPair[hasher.Hstring, hasher.Hint]{
-		*InitKVPair(hasher.Hstring("OLA 1"), hasher.Hint(1)),
-		*InitKVPair(hasher.Hstring("OLA 2"), hasher.Hint(2)),
-	}
+
+	expectedT1ExceptT2 := kvPairs[len(kvPairs)-5000:]
+	expectedT2ExceptT1 := kvPairs[:1000]
 
 	// Check if actualT1ExceptT2 matches expectedT1ExceptT2 regardless of order
 	if !AreSlicesEqual(actualT1ExceptT2, expectedT1ExceptT2) {

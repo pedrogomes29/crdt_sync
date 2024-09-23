@@ -11,14 +11,6 @@ import (
 	"strings"
 )
 
-const TARGET_BITS = 2 //how many bits must be 0 to cause a new boundary => expected block size is 2^TARGET_BITS
-var Target *big.Int
-
-func init() {
-	Target = big.NewInt(1)
-	Target.Lsh(Target, uint(256-TARGET_BITS))
-}
-
 type ByKeyHash[K hasher.Hasher, V hasher.Hasher] []KAddrPair[K, V]
 
 func (a ByKeyHash[K, V]) Len() int {
@@ -77,18 +69,23 @@ type ProllyTreeNode[K hasher.Hasher, V hasher.Hasher] struct {
 	children []KAddrPair[K, V]
 }
 
+type ProllyTreeConfig struct {
+	Target *big.Int
+}
+
 type ProllyTree[K hasher.Hasher, V hasher.Hasher] struct {
 	rootAddress [32]byte
 	kvStore     KVStore
+	config      ProllyTreeConfig
 }
 
-func (pair KAddrPair[K, V]) CheckBoundary(level hasher.Hint) bool {
+func (pair KAddrPair[K, V]) CheckBoundary(level hasher.Hint, target *big.Int) bool {
 	levelHash := level.Hash()
 	keyHash := pair.key.Hash(levelHash[:]...)
 	var hashInt big.Int
 	hashInt.SetBytes(keyHash[:])
 
-	isBoundary := hashInt.Cmp(Target) == -1
+	isBoundary := hashInt.Cmp(target) == -1
 	return isBoundary
 }
 
@@ -105,12 +102,12 @@ func indexValues[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], kvSto
 	return kAddrPairs
 }
 
-func chunkPairs[K hasher.Hasher, V hasher.Hasher](pairs []KAddrPair[K, V], level hasher.Hint, kvStore KVStore) []KAddrPair[K, V] {
+func chunkPairs[K hasher.Hasher, V hasher.Hasher](pairs []KAddrPair[K, V], level hasher.Hint, kvStore KVStore, config ProllyTreeConfig) []KAddrPair[K, V] {
 	var newLevelPairs []KAddrPair[K, V]
 	var currentChunk = ProllyTreeNode[K, V]{}
 	for _, kAddrPair := range pairs {
 		currentChunk.children = append(currentChunk.children, kAddrPair)
-		if kAddrPair.CheckBoundary(level) {
+		if kAddrPair.CheckBoundary(level, config.Target) {
 			currentChunkAddr := currentChunk.Hash()
 			newKAddrPair := KAddrPair[K, V]{
 				kAddrPair.key,
@@ -143,9 +140,15 @@ func InitKVPair[K hasher.Hasher, V hasher.Hasher](key K, value V) *KVPair[K, V] 
 	}
 }
 
-func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V]) *ProllyTree[K, V] {
+func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], targetBits int) *ProllyTree[K, V] {
+	Target := big.NewInt(1)
+	Target.Lsh(Target, uint(256-targetBits))
+
 	tree := &ProllyTree[K, V]{
 		kvStore: make(map[string]interface{}),
+		config: ProllyTreeConfig{
+			Target: Target,
+		},
 	}
 
 	kAddrPairs := indexValues(kvPairs, tree.kvStore)
@@ -153,7 +156,7 @@ func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V]) *P
 
 	level := hasher.Hint(0)
 	for len(kAddrPairs) > 1 {
-		kAddrPairs = chunkPairs(kAddrPairs, level, tree.kvStore)
+		kAddrPairs = chunkPairs(kAddrPairs, level, tree.kvStore, tree.config)
 		level += 1
 	}
 

@@ -61,7 +61,7 @@
 				
 				<option value="file2">crdt_sync/prolly/kvstore.go (100.0%)</option>
 				
-				<option value="file3">crdt_sync/prolly/tree.go (74.5%)</option>
+				<option value="file3">crdt_sync/prolly/tree.go (78.9%)</option>
 				
 				</select>
 			</div>
@@ -222,14 +222,6 @@ import (
         "strings"
 )
 
-const TARGET_BITS = 2 //how many bits must be 0 to cause a new boundary =&gt; expected block size is 2^TARGET_BITS
-var Target *big.Int
-
-func init() <span class="cov8" title="1">{
-        Target = big.NewInt(1)
-        Target.Lsh(Target, uint(256-TARGET_BITS))
-}</span>
-
 type ByKeyHash[K hasher.Hasher, V hasher.Hasher] []KAddrPair[K, V]
 
 func (a ByKeyHash[K, V]) Len() int <span class="cov8" title="1">{
@@ -288,18 +280,23 @@ type ProllyTreeNode[K hasher.Hasher, V hasher.Hasher] struct {
         children []KAddrPair[K, V]
 }
 
+type ProllyTreeConfig struct {
+        Target *big.Int
+}
+
 type ProllyTree[K hasher.Hasher, V hasher.Hasher] struct {
         rootAddress [32]byte
         kvStore     KVStore
+        config ProllyTreeConfig
 }
 
-func (pair KAddrPair[K, V]) CheckBoundary(level hasher.Hint) bool <span class="cov8" title="1">{
+func (pair KAddrPair[K, V]) CheckBoundary(level hasher.Hint, target *big.Int) bool <span class="cov8" title="1">{
         levelHash := level.Hash()
         keyHash := pair.key.Hash(levelHash[:]...)
         var hashInt big.Int
         hashInt.SetBytes(keyHash[:])
 
-        isBoundary := hashInt.Cmp(Target) == -1
+        isBoundary := hashInt.Cmp(target) == -1
         return isBoundary
 }</span>
 
@@ -316,12 +313,12 @@ func indexValues[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], kvSto
         <span class="cov8" title="1">return kAddrPairs</span>
 }
 
-func chunkPairs[K hasher.Hasher, V hasher.Hasher](pairs []KAddrPair[K, V], level hasher.Hint, kvStore KVStore) []KAddrPair[K, V] <span class="cov8" title="1">{
+func chunkPairs[K hasher.Hasher, V hasher.Hasher](pairs []KAddrPair[K, V], level hasher.Hint, kvStore KVStore, config ProllyTreeConfig) []KAddrPair[K, V] <span class="cov8" title="1">{
         var newLevelPairs []KAddrPair[K, V]
         var currentChunk = ProllyTreeNode[K, V]{}
         for _, kAddrPair := range pairs </span><span class="cov8" title="1">{
                 currentChunk.children = append(currentChunk.children, kAddrPair)
-                if kAddrPair.CheckBoundary(level) </span><span class="cov8" title="1">{
+                if kAddrPair.CheckBoundary(level, config.Target) </span><span class="cov8" title="1">{
                         currentChunkAddr := currentChunk.Hash()
                         newKAddrPair := KAddrPair[K, V]{
                                 kAddrPair.key,
@@ -354,9 +351,15 @@ func InitKVPair[K hasher.Hasher, V hasher.Hasher](key K, value V) *KVPair[K, V] 
         }
 }</span>
 
-func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V]) *ProllyTree[K, V] <span class="cov8" title="1">{
+func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], targetBits int) *ProllyTree[K, V] <span class="cov8" title="1">{
+        Target := big.NewInt(1)
+        Target.Lsh(Target, uint(256-targetBits))
+
         tree := &amp;ProllyTree[K, V]{
                 kvStore: make(map[string]interface{}),
+                config: ProllyTreeConfig{
+                        Target: Target,
+                },
         }
 
         kAddrPairs := indexValues(kvPairs, tree.kvStore)
@@ -364,7 +367,7 @@ func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V]) *P
 
         level := hasher.Hint(0)
         for len(kAddrPairs) &gt; 1 </span><span class="cov8" title="1">{
-                kAddrPairs = chunkPairs(kAddrPairs, level, tree.kvStore)
+                kAddrPairs = chunkPairs(kAddrPairs, level, tree.kvStore, tree.config)
                 level += 1
         }</span>
 
@@ -457,7 +460,7 @@ func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTree
                         t2NodeChild := t2Node.children[t2NodeChildIdx]
 
                         if t1NodeChild.key.Hash() == t2NodeChild.key.Hash() </span><span class="cov8" title="1">{
-                                if t1NodeChild.valueAddress != t2NodeChild.valueAddress </span><span class="cov0" title="0">{
+                                if t1NodeChild.valueAddress != t2NodeChild.valueAddress </span><span class="cov8" title="1">{
                                         t1ExceptT2Pairs = append(t1ExceptT2Pairs, t1NodeChild)
                                         t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2NodeChild)
                                 }</span>
@@ -518,12 +521,12 @@ func FindNodesDiff[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTreeNode[K,
 
         <span class="cov8" title="1">var newT1Nodes []ProllyTreeNode[K, V]
         var newT2Nodes []ProllyTreeNode[K, V]
-        if !t1NodesAreLeafs &amp;&amp; !t2NodesAreLeafs </span><span class="cov0" title="0">{
+        if !t1NodesAreLeafs &amp;&amp; !t2NodesAreLeafs </span><span class="cov8" title="1">{
                 newT1NodesAddrPairs, newT2NodesAddrPairs := FindNonMatchingPairs(t1Nodes, t2Nodes, t1KvStore, t2KvStore)
-                for _, newT1NodesAddrPair := range newT1NodesAddrPairs </span><span class="cov0" title="0">{
+                for _, newT1NodesAddrPair := range newT1NodesAddrPairs </span><span class="cov8" title="1">{
                         newT1Nodes = append(newT1Nodes, newT1NodesAddrPair.getProllyTreeNode(t1KvStore))
                 }</span>
-                <span class="cov0" title="0">for _, newT2NodesAddrPair := range newT2NodesAddrPairs </span><span class="cov0" title="0">{
+                <span class="cov8" title="1">for _, newT2NodesAddrPair := range newT2NodesAddrPairs </span><span class="cov8" title="1">{
                         newT2Nodes = append(newT2Nodes, newT2NodesAddrPair.getProllyTreeNode(t2KvStore))
                 }</span>
         } else<span class="cov8" title="1"> if !t1NodesAreLeafs </span><span class="cov8" title="1">{

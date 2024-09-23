@@ -2,6 +2,7 @@ package prolly
 
 import (
 	"crdt_sync/hasher"
+	"math/rand"
 	"reflect"
 	"sort"
 	"strconv"
@@ -38,10 +39,22 @@ func GenerateKVPairs(nrPairs int) []KVPair[hasher.Hstring, hasher.Hint] {
 	return kvPairs
 }
 
+func GetShuffledSliceCopy[T any] (src []T) []T{
+	a := make([]T, len(src))
+	copy(a, src)
+	
+	rand.Shuffle(len(a), func(i, j int) { a[i], a[j] = a[j], a[i] })
+	return a
+}
+
 func TestDiffSameTree(t *testing.T) {
 	kvPairs := GenerateKVPairs(11)
-	tree1 := InitProllyTree(kvPairs, 3)
-	tree2 := InitProllyTree(kvPairs, 3)
+
+	kvPairs1 := GetShuffledSliceCopy(kvPairs)
+	tree1 := InitProllyTree(kvPairs1, 3)
+
+	kvPairs2 := GetShuffledSliceCopy(kvPairs)
+	tree2 := InitProllyTree(kvPairs2, 3)
 
 	t1ExceptT2, t2ExceptT1 := tree1.Diff(*tree2)
 
@@ -53,10 +66,10 @@ func TestDiffSameTree(t *testing.T) {
 
 func TestDiffDifferentTrees(t *testing.T) {
 	kvPairs := GenerateKVPairs(100000)
-	kvPairs1 := kvPairs[1000:]
+	kvPairs1 := GetShuffledSliceCopy(kvPairs[1000:])
 	tree1 := InitProllyTree(kvPairs1, 3)
 
-	kvPairs2 := kvPairs[:len(kvPairs)-5000]
+	kvPairs2 := GetShuffledSliceCopy(kvPairs[:len(kvPairs)-5000])
 	tree2 := InitProllyTree(kvPairs2, 3)
 
 	actualT1ExceptT2, actualT2ExceptT1 := tree1.Diff(*tree2)

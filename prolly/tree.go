@@ -7,79 +7,62 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"reflect"
 	"sort"
 	"strings"
 )
 
-type ByKeyHash[K hasher.Hasher, V hasher.Hasher] []KAddrPair[K, V]
+type ByKeyHash[K hasher.Hasher] []KAddrPair[K]
 
-func (a ByKeyHash[K, V]) Len() int {
+func (a ByKeyHash[K]) Len() int {
 	return len(a)
 }
-func (a ByKeyHash[K, V]) Swap(i, j int) {
+func (a ByKeyHash[K]) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
-func (a ByKeyHash[K, V]) Less(i, j int) bool {
+func (a ByKeyHash[K]) Less(i, j int) bool {
 	return a[i].Less(a[j])
 }
 
-type KAddrPair[K hasher.Hasher, V hasher.Hasher] struct {
+type KAddrPair[K hasher.Hasher] struct {
 	key          K
 	valueAddress [32]byte
 }
 
-func (p1 KAddrPair[K, V]) Less(p2 KAddrPair[K, V]) bool {
+func (p1 KAddrPair[K]) Less(p2 KAddrPair[K]) bool {
 	p1KeyHash := p1.key.Hash()
 	p2KeyHash := p2.key.Hash()
 	return bytes.Compare(p1KeyHash[:], p2KeyHash[:]) == -1
 }
 
-func (p KAddrPair[K, V]) isLeaf(kvStore KVStore) bool {
-	_, isInteriorNode := kvStore.Get(p.valueAddress).(ProllyTreeNode[K, V])
-	return !isInteriorNode
+func (p KAddrPair[K]) isLeaf() bool {
+	return reflect.ValueOf(p.valueAddress).IsZero()
 }
 
-func (p KAddrPair[K, V]) getProllyTreeNode(kvStore KVStore) ProllyTreeNode[K, V] {
+func (p KAddrPair[K]) getProllyTreeNode(kvStore KVStore) ProllyTreeNode[K] {
 	valueInterface := kvStore.Get(p.valueAddress)
-	node, ok := valueInterface.(ProllyTreeNode[K, V])
+	node, ok := valueInterface.(ProllyTreeNode[K])
 	if !ok {
 		panic(fmt.Sprintf("Type unknown: %T\n", valueInterface))
 	}
 	return node
 }
 
-func (p KAddrPair[K, V]) getKVPair(kvStore KVStore) KVPair[K, V] {
-	valueInterface := kvStore.Get(p.valueAddress)
-	value, ok := valueInterface.(V)
-	if !ok {
-		panic(fmt.Sprintf("Type unknown: %T\n", valueInterface))
-	}
-	return KVPair[K, V]{
-		p.key,
-		value,
-	}
-}
-
-type KVPair[K hasher.Hasher, V hasher.Hasher] struct {
-	key   K
-	value V
-}
-
-type ProllyTreeNode[K hasher.Hasher, V hasher.Hasher] struct {
-	children []KAddrPair[K, V]
+type ProllyTreeNode[K hasher.Hasher] struct {
+	children []KAddrPair[K]
 }
 
 type ProllyTreeConfig struct {
 	Target *big.Int
 }
 
-type ProllyTree[K hasher.Hasher, V hasher.Hasher] struct {
+type ProllyTree[K hasher.Hasher] struct {
 	rootAddress [32]byte
 	kvStore     KVStore
 	config      ProllyTreeConfig
 }
 
-func (pair KAddrPair[K, V]) CheckBoundary(level hasher.Hint, target *big.Int) bool {
+func (pair KAddrPair[K]) CheckBoundary(level hasher.Hint, target *big.Int) bool {
 	levelHash := level.Hash()
 	keyHash := pair.key.Hash(levelHash[:]...)
 	var hashInt big.Int
@@ -89,40 +72,37 @@ func (pair KAddrPair[K, V]) CheckBoundary(level hasher.Hint, target *big.Int) bo
 	return isBoundary
 }
 
-func indexValues[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], kvStore KVStore) []KAddrPair[K, V] {
-	var kAddrPairs []KAddrPair[K, V]
-	for _, kvPair := range kvPairs {
-		valueAddr := kvPair.value.Hash()
-		kvStore.Put(valueAddr, kvPair.value)
-		kAddrPairs = append(kAddrPairs, KAddrPair[K, V]{
-			kvPair.key,
-			valueAddr,
+func indexValues[K hasher.Hasher](keys []K) []KAddrPair[K] {
+	var kAddrPairs []KAddrPair[K]
+	for _, key := range keys {
+		kAddrPairs = append(kAddrPairs, KAddrPair[K]{
+			key: key,
 		})
 	}
 	return kAddrPairs
 }
 
-func chunkPairs[K hasher.Hasher, V hasher.Hasher](pairs []KAddrPair[K, V], level hasher.Hint, kvStore KVStore, config ProllyTreeConfig) []KAddrPair[K, V] {
-	var newLevelPairs []KAddrPair[K, V]
-	var currentChunk = ProllyTreeNode[K, V]{}
+func chunkPairs[K hasher.Hasher](pairs []KAddrPair[K], level hasher.Hint, kvStore KVStore, config ProllyTreeConfig) []KAddrPair[K] {
+	var newLevelPairs []KAddrPair[K]
+	var currentChunk = ProllyTreeNode[K]{}
 	for _, kAddrPair := range pairs {
 		currentChunk.children = append(currentChunk.children, kAddrPair)
 		if kAddrPair.CheckBoundary(level, config.Target) {
 			currentChunkAddr := currentChunk.Hash()
-			newKAddrPair := KAddrPair[K, V]{
+			newKAddrPair := KAddrPair[K]{
 				kAddrPair.key,
 				currentChunkAddr,
 			}
 			kvStore.Put(currentChunkAddr, currentChunk)
 			newLevelPairs = append(newLevelPairs, newKAddrPair)
-			currentChunk = ProllyTreeNode[K, V]{}
+			currentChunk = ProllyTreeNode[K]{}
 		}
 	}
 
 	if len(currentChunk.children) > 0 { //if last pair didn't cause a split
 		highestKeyPair := currentChunk.children[len(currentChunk.children)-1]
 		currentChunkAddr := currentChunk.Hash()
-		newKAddrPair := KAddrPair[K, V]{
+		newKAddrPair := KAddrPair[K]{
 			highestKeyPair.key,
 			currentChunkAddr,
 		}
@@ -133,26 +113,19 @@ func chunkPairs[K hasher.Hasher, V hasher.Hasher](pairs []KAddrPair[K, V], level
 	return newLevelPairs
 }
 
-func InitKVPair[K hasher.Hasher, V hasher.Hasher](key K, value V) *KVPair[K, V] {
-	return &KVPair[K, V]{
-		key,
-		value,
-	}
-}
-
-func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], targetBits int) *ProllyTree[K, V] {
+func InitProllyTree[K hasher.Hasher](keys []K, targetBits int) *ProllyTree[K] {
 	Target := big.NewInt(1)
 	Target.Lsh(Target, uint(256-targetBits))
 
-	tree := &ProllyTree[K, V]{
+	tree := &ProllyTree[K]{
 		kvStore: make(map[string]interface{}),
 		config: ProllyTreeConfig{
 			Target: Target,
 		},
 	}
 
-	kAddrPairs := indexValues(kvPairs, tree.kvStore)
-	sort.Sort(ByKeyHash[K, V](kAddrPairs))
+	kAddrPairs := indexValues(keys)
+	sort.Sort(ByKeyHash[K](kAddrPairs))
 
 	level := hasher.Hint(0)
 	for len(kAddrPairs) > 1 {
@@ -165,7 +138,7 @@ func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], ta
 	return tree
 }
 
-func (tree ProllyTree[K, V]) String() string {
+func (tree ProllyTree[K]) String() string {
 	var sb strings.Builder
 	var queue [][32]byte
 	sb.WriteString("\nTree:\n")
@@ -176,18 +149,14 @@ func (tree ProllyTree[K, V]) String() string {
 			address := queue[0]
 			queue = queue[1:]
 
-			switch addressee := tree.kvStore.Get(address).(type) {
-			case ProllyTreeNode[K, V]:
-				for _, child := range addressee.children {
-					keyHash := child.key.Hash()
-					sb.WriteString(fmt.Sprintf("key hash: %s ", hex.EncodeToString(keyHash[:])))
-					sb.WriteString(fmt.Sprintf("hash: %s  ", hex.EncodeToString(child.valueAddress[:])))
-					queue = append(queue, child.valueAddress)
-				}
-			case V:
-				sb.WriteString(fmt.Sprintf("%v", addressee))
-			default:
-				panic(fmt.Sprintf("Type unknown: %T\n", addressee))
+			node := tree.kvStore.Get(address).(ProllyTreeNode[K])
+
+			for _, child := range node.children {
+				keyHash := child.key.Hash()
+				sb.WriteString(fmt.Sprintf("key: %v ", child.key))
+				sb.WriteString(fmt.Sprintf("key hash: %s ", hex.EncodeToString(keyHash[:])))
+				sb.WriteString(fmt.Sprintf("hash: %s  ", hex.EncodeToString(child.valueAddress[:])))
+				queue = append(queue, child.valueAddress)
 			}
 			sb.WriteString("\n")
 			nodeCount--
@@ -199,35 +168,35 @@ func (tree ProllyTree[K, V]) String() string {
 	return sb.String()
 }
 
-func (node ProllyTreeNode[K, V]) Hash(seed ...byte) [32]byte {
+func (node ProllyTreeNode[K]) Hash(seed ...byte) [32]byte {
 	data := seed
 
-	for _, kvPair := range node.children {
-		keyHash := kvPair.key.Hash()
+	for _, kAddrPair := range node.children {
+		keyHash := kAddrPair.key.Hash()
 
 		data = append(data, keyHash[:]...)
-		data = append(data, kvPair.valueAddress[:]...)
+		data = append(data, kAddrPair.valueAddress[:]...)
 	}
 	return sha256.Sum256(data)
 }
 
-func (t1 ProllyTree[K, V]) Diff(t2 ProllyTree[K, V]) ([]KVPair[K, V], []KVPair[K, V]) {
+func (t1 ProllyTree[K]) Diff(t2 ProllyTree[K]) ([]K, []K) {
 	if t1.rootAddress == t2.rootAddress {
-		return []KVPair[K, V]{}, []KVPair[K, V]{}
+		return []K{}, []K{}
 	}
 
-	t1Root := t1.kvStore.Get(t1.rootAddress).(ProllyTreeNode[K, V])
-	t2Root := t2.kvStore.Get(t2.rootAddress).(ProllyTreeNode[K, V])
+	t1Root := t1.kvStore.Get(t1.rootAddress).(ProllyTreeNode[K])
+	t2Root := t2.kvStore.Get(t2.rootAddress).(ProllyTreeNode[K])
 
-	return FindNodesDiff([]ProllyTreeNode[K, V]{t1Root}, []ProllyTreeNode[K, V]{t2Root}, t1.kvStore, t2.kvStore)
+	return FindNodesDiff([]ProllyTreeNode[K]{t1Root}, []ProllyTreeNode[K]{t2Root}, t1.kvStore, t2.kvStore)
 }
 
-func GetAllLeafs[K hasher.Hasher, V hasher.Hasher](nodes []ProllyTreeNode[K, V], kvStore KVStore) []ProllyTreeNode[K, V] {
-	nodesAreLeafs := nodes[0].children[0].isLeaf(kvStore)
+func GetAllLeafs[K hasher.Hasher](nodes []ProllyTreeNode[K], kvStore KVStore) []ProllyTreeNode[K] {
+	nodesAreLeafs := nodes[0].children[0].isLeaf()
 	if nodesAreLeafs {
 		return nodes
 	}
-	var children []ProllyTreeNode[K, V]
+	var children []ProllyTreeNode[K]
 
 	for _, node := range nodes {
 		for _, child := range node.children {
@@ -238,7 +207,7 @@ func GetAllLeafs[K hasher.Hasher, V hasher.Hasher](nodes []ProllyTreeNode[K, V],
 	return GetAllLeafs(children, kvStore)
 }
 
-func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTreeNode[K, V], t2Nodes []ProllyTreeNode[K, V], t1KvStore KVStore, t2KvStore KVStore) (t1ExceptT2Pairs []KAddrPair[K, V], t2ExceptT1Pairs []KAddrPair[K, V]) {
+func FindNonMatchingPairs[K hasher.Hasher](t1Nodes []ProllyTreeNode[K], t2Nodes []ProllyTreeNode[K], t1KvStore KVStore, t2KvStore KVStore) (t1ExceptT2Pairs []KAddrPair[K], t2ExceptT1Pairs []KAddrPair[K]) {
 	t1NodeIdx, t2NodeIdx := 0, 0
 	t1NodeChildIdx, t2NodeChildIdx := 0, 0
 	for t1NodeIdx < len(t1Nodes) && t2NodeIdx < len(t2Nodes) {
@@ -290,26 +259,26 @@ func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTree
 	return
 }
 
-func FindNodesDiff[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTreeNode[K, V], t2Nodes []ProllyTreeNode[K, V], t1KvStore KVStore, t2KvStore KVStore) ([]KVPair[K, V], []KVPair[K, V]) {
-	t1NodesAreLeafs := t1Nodes[0].children[0].isLeaf(t1KvStore)
-	t2NodesAreLeafs := t2Nodes[0].children[0].isLeaf(t2KvStore)
+func FindNodesDiff[K hasher.Hasher](t1Nodes []ProllyTreeNode[K], t2Nodes []ProllyTreeNode[K], t1KvStore KVStore, t2KvStore KVStore) ([]K, []K) {
+	t1NodesAreLeafs := t1Nodes[0].children[0].isLeaf()
+	t2NodesAreLeafs := t2Nodes[0].children[0].isLeaf()
 	if t1NodesAreLeafs && t2NodesAreLeafs {
 		t1DiffKAddrPairs, t2DiffKAddrPairs := FindNonMatchingPairs(t1Nodes, t2Nodes, t1KvStore, t2KvStore)
-		var t1ExceptT2pairs []KVPair[K, V]
-		var t2ExceptT1Pairs []KVPair[K, V]
+		var t1ExceptT2pairs []K
+		var t2ExceptT1Pairs []K
 
 		for _, t1DiffKAddrPair := range t1DiffKAddrPairs {
-			t1ExceptT2pairs = append(t1ExceptT2pairs, t1DiffKAddrPair.getKVPair(t1KvStore))
+			t1ExceptT2pairs = append(t1ExceptT2pairs, t1DiffKAddrPair.key)
 		}
 		for _, t2DiffKAddrPair := range t2DiffKAddrPairs {
-			t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2DiffKAddrPair.getKVPair(t2KvStore))
+			t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2DiffKAddrPair.key)
 		}
 
 		return t1ExceptT2pairs, t2ExceptT1Pairs
 	}
 
-	var newT1Nodes []ProllyTreeNode[K, V]
-	var newT2Nodes []ProllyTreeNode[K, V]
+	var newT1Nodes []ProllyTreeNode[K]
+	var newT2Nodes []ProllyTreeNode[K]
 	if !t1NodesAreLeafs && !t2NodesAreLeafs {
 		newT1NodesAddrPairs, newT2NodesAddrPairs := FindNonMatchingPairs(t1Nodes, t2Nodes, t1KvStore, t2KvStore)
 		for _, newT1NodesAddrPair := range newT1NodesAddrPairs {

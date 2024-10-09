@@ -61,7 +61,7 @@
 				
 				<option value="file2">crdt_sync/prolly/kvstore.go (100.0%)</option>
 				
-				<option value="file3">crdt_sync/prolly/tree.go (78.9%)</option>
+				<option value="file3">crdt_sync/prolly/tree.go (53.8%)</option>
 				
 				</select>
 			</div>
@@ -198,13 +198,18 @@ func (h Hstring) Hash(seed ...byte) [32]byte <span class="cov8" title="1">{
 
 import "encoding/hex"
 
-type KVStore map[string]interface{}
+type KVStore[T any] map[string]T
 
-func (kvStore KVStore) Put(address [32]byte, value interface{}) <span class="cov8" title="1">{
+func (kvStore KVStore[T]) Put(address [32]byte, value T) <span class="cov8" title="1">{
         kvStore[hex.EncodeToString(address[:])] = value
 }</span>
 
-func (kvStore KVStore) Get(address [32]byte) interface{} <span class="cov8" title="1">{
+func (kvStore KVStore[T]) Delete(address [32]byte) <span class="cov8" title="1">{
+        delete(kvStore,hex.EncodeToString(address[:]))
+}</span>
+
+
+func (kvStore KVStore[T]) Get(address [32]byte) T <span class="cov8" title="1">{
         return kvStore[hex.EncodeToString(address[:])]
 }</span>
 </pre>
@@ -218,79 +223,58 @@ import (
         "encoding/hex"
         "fmt"
         "math/big"
+        "reflect"
+        "slices"
         "sort"
         "strings"
 )
 
-type ByKeyHash[K hasher.Hasher, V hasher.Hasher] []KAddrPair[K, V]
+type ByKeyHash[K hasher.Hasher] []KAddrPair[K]
 
-func (a ByKeyHash[K, V]) Len() int <span class="cov8" title="1">{
+func (a ByKeyHash[K]) Len() int <span class="cov8" title="1">{
         return len(a)
 }</span>
-func (a ByKeyHash[K, V]) Swap(i, j int) <span class="cov8" title="1">{
+func (a ByKeyHash[K]) Swap(i, j int) <span class="cov8" title="1">{
         a[i], a[j] = a[j], a[i]
 }</span>
-func (a ByKeyHash[K, V]) Less(i, j int) bool <span class="cov8" title="1">{
+func (a ByKeyHash[K]) Less(i, j int) bool <span class="cov8" title="1">{
         return a[i].Less(a[j])
 }</span>
 
-type KAddrPair[K hasher.Hasher, V hasher.Hasher] struct {
+type KAddrPair[K hasher.Hasher] struct {
         key          K
         valueAddress [32]byte
 }
 
-func (p1 KAddrPair[K, V]) Less(p2 KAddrPair[K, V]) bool <span class="cov8" title="1">{
+func (p1 KAddrPair[K]) Less(p2 KAddrPair[K]) bool <span class="cov8" title="1">{
         p1KeyHash := p1.key.Hash()
         p2KeyHash := p2.key.Hash()
         return bytes.Compare(p1KeyHash[:], p2KeyHash[:]) == -1
 }</span>
 
-func (p KAddrPair[K, V]) isLeaf(kvStore KVStore) bool <span class="cov8" title="1">{
-        _, isInteriorNode := kvStore.Get(p.valueAddress).(ProllyTreeNode[K, V])
-        return !isInteriorNode
+func (p KAddrPair[K]) isLeaf() bool <span class="cov8" title="1">{
+        return reflect.ValueOf(p.valueAddress).IsZero()
 }</span>
 
-func (p KAddrPair[K, V]) getProllyTreeNode(kvStore KVStore) ProllyTreeNode[K, V] <span class="cov8" title="1">{
-        valueInterface := kvStore.Get(p.valueAddress)
-        node, ok := valueInterface.(ProllyTreeNode[K, V])
-        if !ok </span><span class="cov0" title="0">{
-                panic(fmt.Sprintf("Type unknown: %T\n", valueInterface))</span>
-        }
-        <span class="cov8" title="1">return node</span>
-}
+func (p KAddrPair[K]) getProllyTreeNode(kvStore KVStore[ProllyTreeNode[K]]) ProllyTreeNode[K] <span class="cov0" title="0">{
+        return kvStore.Get(p.valueAddress)
+}</span>
 
-func (p KAddrPair[K, V]) getKVPair(kvStore KVStore) KVPair[K, V] <span class="cov8" title="1">{
-        valueInterface := kvStore.Get(p.valueAddress)
-        value, ok := valueInterface.(V)
-        if !ok </span><span class="cov0" title="0">{
-                panic(fmt.Sprintf("Type unknown: %T\n", valueInterface))</span>
-        }
-        <span class="cov8" title="1">return KVPair[K, V]{
-                p.key,
-                value,
-        }</span>
-}
-
-type KVPair[K hasher.Hasher, V hasher.Hasher] struct {
-        key   K
-        value V
-}
-
-type ProllyTreeNode[K hasher.Hasher, V hasher.Hasher] struct {
-        children []KAddrPair[K, V]
+type ProllyTreeNode[K hasher.Hasher] struct {
+        children []KAddrPair[K]
 }
 
 type ProllyTreeConfig struct {
         Target *big.Int
 }
 
-type ProllyTree[K hasher.Hasher, V hasher.Hasher] struct {
+type ProllyTree[K hasher.Hasher] struct {
         rootAddress [32]byte
-        kvStore     KVStore
-        config ProllyTreeConfig
+        kvStore     KVStore[ProllyTreeNode[K]]
+        config      ProllyTreeConfig
 }
 
-func (pair KAddrPair[K, V]) CheckBoundary(level hasher.Hint, target *big.Int) bool <span class="cov8" title="1">{
+func (pair KAddrPair[K]) CheckBoundary(level hasher.Hint, target *big.Int) bool <span class="cov8" title="1">{
         levelHash := level.Hash()
         keyHash := pair.key.Hash(levelHash[:]...)
         var hashInt big.Int
@@ -300,40 +284,37 @@ func (pair KAddrPair[K, V]) CheckBoundary(level hasher.Hint, target *big.Int) bo
         return isBoundary
 }</span>
 
-func indexValues[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], kvStore KVStore) []KAddrPair[K, V] <span class="cov8" title="1">{
-        var kAddrPairs []KAddrPair[K, V]
-        for _, kvPair := range kvPairs </span><span class="cov8" title="1">{
-                valueAddr := kvPair.value.Hash()
-                kvStore.Put(valueAddr, kvPair.value)
-                kAddrPairs = append(kAddrPairs, KAddrPair[K, V]{
-                        kvPair.key,
-                        valueAddr,
+func indexValues[K hasher.Hasher](keys []K) []KAddrPair[K] <span class="cov8" title="1">{
+        var kAddrPairs []KAddrPair[K]
+        for _, key := range keys </span><span class="cov8" title="1">{
+                kAddrPairs = append(kAddrPairs, KAddrPair[K]{
+                        key: key,
                 })
         }</span>
         <span class="cov8" title="1">return kAddrPairs</span>
 }
 
-func chunkPairs[K hasher.Hasher, V hasher.Hasher](pairs []KAddrPair[K, V], level hasher.Hint, kvStore KVStore, config ProllyTreeConfig) []KAddrPair[K, V] <span class="cov8" title="1">{
-        var newLevelPairs []KAddrPair[K, V]
-        var currentChunk = ProllyTreeNode[K, V]{}
+func chunkPairs[K hasher.Hasher](pairs []KAddrPair[K], level hasher.Hint, kvStore KVStore[ProllyTreeNode[K]], config ProllyTreeConfig) []KAddrPair[K] <span class="cov8" title="1">{
+        var newLevelPairs []KAddrPair[K]
+        var currentChunk = ProllyTreeNode[K]{}
         for _, kAddrPair := range pairs </span><span class="cov8" title="1">{
                 currentChunk.children = append(currentChunk.children, kAddrPair)
                 if kAddrPair.CheckBoundary(level, config.Target) </span><span class="cov8" title="1">{
                         currentChunkAddr := currentChunk.Hash()
-                        newKAddrPair := KAddrPair[K, V]{
+                        newKAddrPair := KAddrPair[K]{
                                 kAddrPair.key,
                                 currentChunkAddr,
                         }
                         kvStore.Put(currentChunkAddr, currentChunk)
                         newLevelPairs = append(newLevelPairs, newKAddrPair)
-                        currentChunk = ProllyTreeNode[K, V]{}
+                        currentChunk = ProllyTreeNode[K]{}
                 }</span>
         }
 
         <span class="cov8" title="1">if len(currentChunk.children) &gt; 0 </span><span class="cov8" title="1">{ //if last pair didn't cause a split
                 highestKeyPair := currentChunk.children[len(currentChunk.children)-1]
                 currentChunkAddr := currentChunk.Hash()
-                newKAddrPair := KAddrPair[K, V]{
+                newKAddrPair := KAddrPair[K]{
                         highestKeyPair.key,
                         currentChunkAddr,
                 }
@@ -344,26 +325,19 @@ func chunkPairs[K hasher.Hasher, V hasher.Hasher](pairs []KAddrPair[K, V], level
         <span class="cov8" title="1">return newLevelPairs</span>
 }
 
-func InitKVPair[K hasher.Hasher, V hasher.Hasher](key K, value V) *KVPair[K, V] <span class="cov8" title="1">{
-        return &amp;KVPair[K, V]{
-                key,
-                value,
-        }
-}</span>
-
-func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], targetBits int) *ProllyTree[K, V] <span class="cov8" title="1">{
+func InitProllyTree[K hasher.Hasher](keys []K, targetBits int) *ProllyTree[K] <span class="cov8" title="1">{
         Target := big.NewInt(1)
         Target.Lsh(Target, uint(256-targetBits))
 
-        tree := &amp;ProllyTree[K, V]{
-                kvStore: make(map[string]interface{}),
+        tree := &amp;ProllyTree[K]{
+                kvStore: make(map[string]ProllyTreeNode[K]),
                 config: ProllyTreeConfig{
                         Target: Target,
                 },
         }
 
-        kAddrPairs := indexValues(kvPairs, tree.kvStore)
-        sort.Sort(ByKeyHash[K, V](kAddrPairs))
+        kAddrPairs := indexValues(keys)
+        sort.Sort(ByKeyHash[K](kAddrPairs))
 
         level := hasher.Hint(0)
         for len(kAddrPairs) &gt; 1 </span><span class="cov8" title="1">{
@@ -371,173 +345,345 @@ func InitProllyTree[K hasher.Hasher, V hasher.Hasher](kvPairs []KVPair[K, V], ta
                 level += 1
         }</span>
 
-        <span class="cov8" title="1">tree.rootAddress = kAddrPairs[0].valueAddress
+        <span class="cov8" title="1">if len(kAddrPairs)==1</span><span class="cov8" title="1">{
+                tree.rootAddress = kAddrPairs[0].valueAddress
+        }</span>
 
-        return tree</span>
+        <span class="cov8" title="1">return tree</span>
 }
 
-func (tree ProllyTree[K, V]) String() string <span class="cov0" title="0">{
+func (tree *ProllyTree[K]) IsEmpty() bool<span class="cov8" title="1">{
+        return reflect.ValueOf(tree.rootAddress).IsZero()
+}</span>
+
+func (tree *ProllyTree[K]) Insert(key K) <span class="cov8" title="1">{
+        var newRoot *ProllyTreeNode[K]
+        if tree.IsEmpty()</span><span class="cov8" title="1">{
+                newRoot = &amp;ProllyTreeNode[K]{
+                        []KAddrPair[K]{
+                                {
+                                        key: key,
+                                },
+                        },
+                }
+        }</span>else<span class="cov8" title="1">{
+                oldRoot := tree.kvStore.Get(tree.rootAddress)
+                keyHash := key.Hash()
+                oldRootBiggestKey := oldRoot.children[len(oldRoot.children)-1].key
+                oldRootBiggestKeyHash := oldRootBiggestKey.Hash()
+                newLargestElement := bytes.Compare(keyHash[:],oldRootBiggestKeyHash[:])==1
+
+                newBoundaryNode, level := oldRoot.insert(key, tree.kvStore, tree.config)
+                for newBoundaryNode!=nil</span><span class="cov8" title="1">{
+                        newRoot = &amp;ProllyTreeNode[K]{
+                                []KAddrPair[K]{
+                                        {
+                                                oldRoot.children[len(oldRoot.children)-1].key,
+                                                oldRoot.Hash(),
+                                        },
+                                },
+                        }
+                        newKAddrPair := KAddrPair[K]{
+                                key,
+                                newBoundaryNode.Hash(),
+                        }
+
+                        var posToInsert int
+                        if newLargestElement</span><span class="cov8" title="1">{
+                                posToInsert=1
+                        }</span>else<span class="cov0" title="0">{
+                                posToInsert=0
+                        }</span>
+                        <span class="cov8" title="1">newBoundaryNode = newRoot.insertKAddrPair(posToInsert, newKAddrPair, hasher.Hint(level+1), tree.config)
+                        if newBoundaryNode!=nil</span><span class="cov0" title="0">{
+                                tree.kvStore.Put(newRoot.Hash(),*newRoot)
+                                tree.kvStore.Put(newBoundaryNode.Hash(),*newBoundaryNode)
+                                level++
+                        }</span>
+                        <span class="cov8" title="1">oldRoot = *newRoot</span>
+                }
+                <span class="cov8" title="1">newRoot = &amp;oldRoot</span>
+        }
+        <span class="cov8" title="1">tree.kvStore.Put(newRoot.Hash(),*newRoot)
+        tree.rootAddress = newRoot.Hash()</span>
+}
+
+func (node *ProllyTreeNode[K]) insert(key K, kvStore KVStore[ProllyTreeNode[K]], config ProllyTreeConfig) (newBoundaryNode *ProllyTreeNode[K], nodeLevel int)<span class="cov8" title="1">{
+        keyHash := key.Hash()
+        firstBiggerKeyIdx := len(node.children)
+
+        for childIdx, kAddrPair := range node.children</span><span class="cov8" title="1">{
+                childHash := kAddrPair.key.Hash()
+                comparison := bytes.Compare(keyHash[:],childHash[:])
+                if comparison == 0</span><span class="cov0" title="0">{
+                        return nil,-1;
+                }</span>        
+                <span class="cov8" title="1">if comparison &lt; 0</span><span class="cov8" title="1">{ //if new key is smaller than the current key
+                        firstBiggerKeyIdx = childIdx
+                        break</span>;
+                }
+        }
+        <span class="cov8" title="1">outdatedNodeHash := node.Hash()
+
+        if node.isLeaf()</span><span class="cov8" title="1">{
+                kAddrPair := KAddrPair[K]{
+                        key:key,
+                }
+                nodeLevel = 0
+                newBoundaryNode = node.insertKAddrPair(firstBiggerKeyIdx, kAddrPair, hasher.Hint(nodeLevel), config)
+        }</span>else<span class="cov8" title="1">{
+                kAddrPair := node.children[min(firstBiggerKeyIdx,len(node.children)-1)]
+                child := kvStore.Get(kAddrPair.valueAddress)
+                newChildBoundaryNode, childLevel := child.insert(key, kvStore, config)
+                nodeLevel = childLevel + 1
+                var oldChildIdx int
+                if newChildBoundaryNode!=nil</span><span class="cov8" title="1">{
+                        kAddrPair := KAddrPair[K]{
+                                key:key,
+                                valueAddress: newChildBoundaryNode.Hash(),
+                        }
+                        isInsertAtEnd := firstBiggerKeyIdx==len(node.children)
+                        //new child is at the left when inserting in the middle and at the right when inserting at the end
+                        if isInsertAtEnd</span><span class="cov0" title="0">{
+                                oldChildIdx = firstBiggerKeyIdx - 1
+                        }</span>else<span class="cov8" title="1">{
+                                oldChildIdx = firstBiggerKeyIdx + 1
+                        }</span>
+                        <span class="cov8" title="1">newBoundaryNode = node.insertKAddrPair(firstBiggerKeyIdx, kAddrPair, hasher.Hint(nodeLevel),config)
+                        
+                        if newBoundaryNode!=nil &amp;&amp; !isInsertAtEnd</span><span class="cov0" title="0">{
+                                //if there was a split when inserting at the current node and the new child is at the left,
+                                //compensate the old child idx by removing the number of keys that are now part of the new node
+                                oldChildIdx -= len(newBoundaryNode.children)
+                        }</span>
+
+                }else<span class="cov8" title="1">{
+                        oldChildIdx = firstBiggerKeyIdx
+                        if firstBiggerKeyIdx==len(node.children)</span><span class="cov8" title="1">{
+                                oldChildIdx--
+                        }</span>
+                }
+                <span class="cov8" title="1">node.children[oldChildIdx].key = child.children[len(child.children)-1].key
+                node.children[oldChildIdx].valueAddress = child.Hash()</span>
+        }
+
+        <span class="cov8" title="1">if newBoundaryNode!=nil</span><span class="cov8" title="1">{
+                kvStore.Put(newBoundaryNode.Hash(),*newBoundaryNode)
+        }</span>
+        
+        <span class="cov8" title="1">kvStore.Delete(outdatedNodeHash)
+        kvStore.Put(node.Hash(),*node)
+
+        
+        return</span>
+}
+
+
+func (node *ProllyTreeNode[K]) insertKAddrPair(pairIdx int, newKAddrPair KAddrPair[K],level hasher.Hint, config ProllyTreeConfig) *ProllyTreeNode[K]<span class="cov8" title="1">{
+        node.children = slices.Insert(node.children, pairIdx, newKAddrPair)
+        var newNode *ProllyTreeNode[K]
+
+        if pairIdx==len(node.children)-1</span><span class="cov8" title="1">{//if key is inserted at the end
+                lastKAddrPairB4Insert := node.children[len(node.children)-2]
+                if lastKAddrPairB4Insert.CheckBoundary(level,config.Target)</span><span class="cov8" title="1">{
+                        newNode = &amp;ProllyTreeNode[K]{}
+                        
+                        newNode.children = make([]KAddrPair[K],pairIdx)
+                        copy(newNode.children,node.children[pairIdx:])
+                        
+                        node.children = node.children[:pairIdx]
+                }</span>
+        }else<span class="cov8" title="1"> if newKAddrPair.CheckBoundary(level, config.Target)</span><span class="cov8" title="1">{
+                newNode = &amp;ProllyTreeNode[K]{}
+                
+                newNode.children = make([]KAddrPair[K],len(node.children[:pairIdx+1]))
+                copy(newNode.children,node.children[:pairIdx+1])
+                
+                node.children = node.children[pairIdx+1:]
+        }</span>
+        <span class="cov8" title="1">return newNode</span>
+}
+
+
+
+func (node ProllyTreeNode[K]) String(kvStore KVStore[ProllyTreeNode[K]]) string <span class="cov0" title="0">{
         var sb strings.Builder
         var queue [][32]byte
-        sb.WriteString("\nTree:\n")
-        queue = append(queue, tree.rootAddress)
+        level := 0
+        queue = append(queue, node.Hash())
         for len(queue) &gt; 0 </span><span class="cov0" title="0">{ //bfs
                 nodeCount := len(queue)
+                sb.WriteString(fmt.Sprintf("Level %d: \n",level))
                 for nodeCount &gt; 0 </span><span class="cov0" title="0">{ //visit all nodes at the current depth
                         address := queue[0]
                         queue = queue[1:]
+                        node := kvStore.Get(address)
 
-                        switch addressee := tree.kvStore.Get(address).(type) </span>{
-                        case ProllyTreeNode[K, V]:<span class="cov0" title="0">
-                                for _, child := range addressee.children </span><span class="cov0" title="0">{
-                                        keyHash := child.key.Hash()
-                                        sb.WriteString(fmt.Sprintf("key hash: %s ", hex.EncodeToString(keyHash[:])))
-                                        sb.WriteString(fmt.Sprintf("hash: %s  ", hex.EncodeToString(child.valueAddress[:])))
+                        for _, child := range node.children </span><span class="cov0" title="0">{
+                                keyHash := child.key.Hash()
+                                sb.WriteString(fmt.Sprintf("key: %v, ", child.key))
+                                sb.WriteString(fmt.Sprintf("key hash: %s ", hex.EncodeToString(keyHash[:])))
+                                if !child.isLeaf()</span><span class="cov0" title="0">{
+                                        sb.WriteString(fmt.Sprintf("Key: %v, Address: %s\n", child.key, hex.EncodeToString(child.valueAddress[:])))
                                         queue = append(queue, child.valueAddress)
                                 }</span>
-                        case V:<span class="cov0" title="0">
-                                sb.WriteString(fmt.Sprintf("%v", addressee))</span>
-                        default:<span class="cov0" title="0">
-                                panic(fmt.Sprintf("Type unknown: %T\n", addressee))</span>
                         }
                         <span class="cov0" title="0">sb.WriteString("\n")
                         nodeCount--</span>
                 }
 
-                <span class="cov0" title="0">sb.WriteString("\n\n")</span>
-
+                <span class="cov0" title="0">sb.WriteString("\n\n")
+                level++</span>
         }
         <span class="cov0" title="0">return sb.String()</span>
 }
 
-func (node ProllyTreeNode[K, V]) Hash(seed ...byte) [32]byte <span class="cov8" title="1">{
+
+func (tree ProllyTree[K]) String() string <span class="cov0" title="0">{
+        var sb strings.Builder
+        if tree.IsEmpty()</span><span class="cov0" title="0">{
+                return "tree is empty"
+        }</span>
+
+        <span class="cov0" title="0">sb.WriteString("\nTree:\n")
+
+        root := tree.kvStore.Get(tree.rootAddress)
+        return root.String(tree.kvStore)</span>
+}
+
+func (node ProllyTreeNode[K]) isLeaf() bool<span class="cov8" title="1">{
+        return node.children[0].isLeaf()
+}</span>
+
+
+func (node ProllyTreeNode[K]) Hash(seed ...byte) [32]byte <span class="cov8" title="1">{
         data := seed
 
-        for _, kvPair := range node.children </span><span class="cov8" title="1">{
-                keyHash := kvPair.key.Hash()
+        for _, kAddrPair := range node.children </span><span class="cov8" title="1">{
+                keyHash := kAddrPair.key.Hash()
 
                 data = append(data, keyHash[:]...)
-                data = append(data, kvPair.valueAddress[:]...)
+                data = append(data, kAddrPair.valueAddress[:]...)
         }</span>
         <span class="cov8" title="1">return sha256.Sum256(data)</span>
 }
 
-func (t1 ProllyTree[K, V]) Diff(t2 ProllyTree[K, V]) ([]KVPair[K, V], []KVPair[K, V]) <span class="cov8" title="1">{
+func (t1 ProllyTree[K]) Diff(t2 ProllyTree[K]) ([]K, []K) <span class="cov8" title="1">{
         if t1.rootAddress == t2.rootAddress </span><span class="cov8" title="1">{
-                return []KVPair[K, V]{}, []KVPair[K, V]{}
+                return []K{}, []K{}
         }</span>
 
-        <span class="cov8" title="1">t1Root := t1.kvStore.Get(t1.rootAddress).(ProllyTreeNode[K, V])
-        t2Root := t2.kvStore.Get(t2.rootAddress).(ProllyTreeNode[K, V])
+        <span class="cov0" title="0">t1Root := t1.kvStore.Get(t1.rootAddress)
+        t2Root := t2.kvStore.Get(t2.rootAddress)
 
-        return FindNodesDiff([]ProllyTreeNode[K, V]{t1Root}, []ProllyTreeNode[K, V]{t2Root}, t1.kvStore, t2.kvStore)</span>
+        return FindNodesDiff([]ProllyTreeNode[K]{t1Root}, []ProllyTreeNode[K]{t2Root}, t1.kvStore, t2.kvStore)</span>
 }
 
-func GetAllLeafs[K hasher.Hasher, V hasher.Hasher](nodes []ProllyTreeNode[K, V], kvStore KVStore) []ProllyTreeNode[K, V] <span class="cov8" title="1">{
-        nodesAreLeafs := nodes[0].children[0].isLeaf(kvStore)
-        if nodesAreLeafs </span><span class="cov8" title="1">{
+func GetAllLeafs[K hasher.Hasher](nodes []ProllyTreeNode[K], kvStore KVStore[ProllyTreeNode[K]]) []ProllyTreeNode[K] <span class="cov0" title="0">{
+        nodesAreLeafs := nodes[0].children[0].isLeaf()
+        if nodesAreLeafs </span><span class="cov0" title="0">{
                 return nodes
         }</span>
-        <span class="cov8" title="1">var children []ProllyTreeNode[K, V]
+        <span class="cov0" title="0">var children []ProllyTreeNode[K]
 
-        for _, node := range nodes </span><span class="cov8" title="1">{
-                for _, child := range node.children </span><span class="cov8" title="1">{
+        for _, node := range nodes </span><span class="cov0" title="0">{
+                for _, child := range node.children </span><span class="cov0" title="0">{
                         children = append(children, child.getProllyTreeNode(kvStore))
                 }</span>
         }
 
-        <span class="cov8" title="1">return GetAllLeafs(children, kvStore)</span>
+        <span class="cov0" title="0">return GetAllLeafs(children, kvStore)</span>
 }
 
-func FindNonMatchingPairs[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTreeNode[K, V], t2Nodes []ProllyTreeNode[K, V], t1KvStore KVStore, t2KvStore KVStore) (t1ExceptT2Pairs []KAddrPair[K, V], t2ExceptT1Pairs []KAddrPair[K, V]) <span class="cov8" title="1">{
+func FindNonMatchingPairs[K hasher.Hasher](t1Nodes []ProllyTreeNode[K], t2Nodes []ProllyTreeNode[K], t1KvStore KVStore[ProllyTreeNode[K]], t2KvStore KVStore[ProllyTreeNode[K]]) (t1ExceptT2Pairs []KAddrPair[K], t2ExceptT1Pairs []KAddrPair[K]) <span class="cov0" title="0">{
         t1NodeIdx, t2NodeIdx := 0, 0
         t1NodeChildIdx, t2NodeChildIdx := 0, 0
-        for t1NodeIdx &lt; len(t1Nodes) &amp;&amp; t2NodeIdx &lt; len(t2Nodes) </span><span class="cov8" title="1">{
+        for t1NodeIdx &lt; len(t1Nodes) &amp;&amp; t2NodeIdx &lt; len(t2Nodes) </span><span class="cov0" title="0">{
                 t1Node := t1Nodes[t1NodeIdx]
                 t2Node := t2Nodes[t2NodeIdx]
-                for t1NodeChildIdx &lt; len(t1Node.children) &amp;&amp; t2NodeChildIdx &lt; len(t2Node.children) </span><span class="cov8" title="1">{
+                for t1NodeChildIdx &lt; len(t1Node.children) &amp;&amp; t2NodeChildIdx &lt; len(t2Node.children) </span><span class="cov0" title="0">{
                         t1NodeChild := t1Node.children[t1NodeChildIdx]
                         t2NodeChild := t2Node.children[t2NodeChildIdx]
 
-                        if t1NodeChild.key.Hash() == t2NodeChild.key.Hash() </span><span class="cov8" title="1">{
-                                if t1NodeChild.valueAddress != t2NodeChild.valueAddress </span><span class="cov8" title="1">{
+                        if t1NodeChild.key.Hash() == t2NodeChild.key.Hash() </span><span class="cov0" title="0">{
+                                if t1NodeChild.valueAddress != t2NodeChild.valueAddress </span><span class="cov0" title="0">{
                                         t1ExceptT2Pairs = append(t1ExceptT2Pairs, t1NodeChild)
                                         t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2NodeChild)
                                 }</span>
-                                <span class="cov8" title="1">t1NodeChildIdx++
+                                <span class="cov0" title="0">t1NodeChildIdx++
                                 t2NodeChildIdx++</span>
-                        } else<span class="cov8" title="1"> if t1NodeChild.Less(t2NodeChild) </span><span class="cov8" title="1">{
+                        } else<span class="cov0" title="0"> if t1NodeChild.Less(t2NodeChild) </span><span class="cov0" title="0">{
                                 t1ExceptT2Pairs = append(t1ExceptT2Pairs, t1NodeChild)
                                 t1NodeChildIdx++
-                        }</span> else<span class="cov8" title="1"> {
+                        }</span> else<span class="cov0" title="0"> {
                                 t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2NodeChild)
                                 t2NodeChildIdx++
                         }</span>
                 }
-                <span class="cov8" title="1">if t1NodeChildIdx == len(t1Node.children) </span><span class="cov8" title="1">{
+                <span class="cov0" title="0">if t1NodeChildIdx == len(t1Node.children) </span><span class="cov0" title="0">{
                         t1NodeChildIdx = 0
                         t1NodeIdx++
                 }</span>
-                <span class="cov8" title="1">if t2NodeChildIdx == len(t2Node.children) </span><span class="cov8" title="1">{
+                <span class="cov0" title="0">if t2NodeChildIdx == len(t2Node.children) </span><span class="cov0" title="0">{
                         t2NodeChildIdx = 0
                         t2NodeIdx++
                 }</span>
         }
 
-        <span class="cov8" title="1">for t1NodeIdx &lt; len(t1Nodes) </span><span class="cov0" title="0">{
+        <span class="cov0" title="0">for t1NodeIdx &lt; len(t1Nodes) </span><span class="cov0" title="0">{
                 t1Node := t1Nodes[t1NodeIdx]
                 for t1NodeChildIdx &lt; len(t1Node.children) </span><span class="cov0" title="0">{
                         t1NodeChild := t1Node.children[t1NodeChildIdx]
                         t1ExceptT2Pairs = append(t1ExceptT2Pairs, t1NodeChild)
                 }</span>
         }
-        <span class="cov8" title="1">for t2NodeIdx &lt; len(t2Nodes) </span><span class="cov0" title="0">{
+        <span class="cov0" title="0">for t2NodeIdx &lt; len(t2Nodes) </span><span class="cov0" title="0">{
                 t2Node := t2Nodes[t2NodeIdx]
                 for t2NodeChildIdx &lt; len(t2Node.children) </span><span class="cov0" title="0">{
                         t2NodeChild := t2Node.children[t2NodeChildIdx]
                         t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2NodeChild)
                 }</span>
         }
-        <span class="cov8" title="1">return</span>
+        <span class="cov0" title="0">return</span>
 }
 
-func FindNodesDiff[K hasher.Hasher, V hasher.Hasher](t1Nodes []ProllyTreeNode[K, V], t2Nodes []ProllyTreeNode[K, V], t1KvStore KVStore, t2KvStore KVStore) ([]KVPair[K, V], []KVPair[K, V]) <span class="cov8" title="1">{
-        t1NodesAreLeafs := t1Nodes[0].children[0].isLeaf(t1KvStore)
-        t2NodesAreLeafs := t2Nodes[0].children[0].isLeaf(t2KvStore)
-        if t1NodesAreLeafs &amp;&amp; t2NodesAreLeafs </span><span class="cov8" title="1">{
+func FindNodesDiff[K hasher.Hasher](t1Nodes []ProllyTreeNode[K], t2Nodes []ProllyTreeNode[K], t1KvStore KVStore[ProllyTreeNode[K]], t2KvStore KVStore[ProllyTreeNode[K]]) ([]K, []K) <span class="cov0" title="0">{
+        t1NodesAreLeafs := t1Nodes[0].isLeaf()
+        t2NodesAreLeafs := t2Nodes[0].isLeaf()
+        if t1NodesAreLeafs &amp;&amp; t2NodesAreLeafs </span><span class="cov0" title="0">{
                 t1DiffKAddrPairs, t2DiffKAddrPairs := FindNonMatchingPairs(t1Nodes, t2Nodes, t1KvStore, t2KvStore)
-                var t1ExceptT2pairs []KVPair[K, V]
-                var t2ExceptT1Pairs []KVPair[K, V]
+                var t1ExceptT2pairs []K
+                var t2ExceptT1Pairs []K
 
-                for _, t1DiffKAddrPair := range t1DiffKAddrPairs </span><span class="cov8" title="1">{
-                        t1ExceptT2pairs = append(t1ExceptT2pairs, t1DiffKAddrPair.getKVPair(t1KvStore))
+                for _, t1DiffKAddrPair := range t1DiffKAddrPairs </span><span class="cov0" title="0">{
+                        t1ExceptT2pairs = append(t1ExceptT2pairs, t1DiffKAddrPair.key)
                 }</span>
-                <span class="cov8" title="1">for _, t2DiffKAddrPair := range t2DiffKAddrPairs </span><span class="cov8" title="1">{
-                        t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2DiffKAddrPair.getKVPair(t2KvStore))
+                <span class="cov0" title="0">for _, t2DiffKAddrPair := range t2DiffKAddrPairs </span><span class="cov0" title="0">{
+                        t2ExceptT1Pairs = append(t2ExceptT1Pairs, t2DiffKAddrPair.key)
                 }</span>
 
-                <span class="cov8" title="1">return t1ExceptT2pairs, t2ExceptT1Pairs</span>
+                <span class="cov0" title="0">return t1ExceptT2pairs, t2ExceptT1Pairs</span>
         }
 
-        <span class="cov8" title="1">var newT1Nodes []ProllyTreeNode[K, V]
-        var newT2Nodes []ProllyTreeNode[K, V]
-        if !t1NodesAreLeafs &amp;&amp; !t2NodesAreLeafs </span><span class="cov8" title="1">{
+        <span class="cov0" title="0">var newT1Nodes []ProllyTreeNode[K]
+        var newT2Nodes []ProllyTreeNode[K]
+        if !t1NodesAreLeafs &amp;&amp; !t2NodesAreLeafs </span><span class="cov0" title="0">{
                 newT1NodesAddrPairs, newT2NodesAddrPairs := FindNonMatchingPairs(t1Nodes, t2Nodes, t1KvStore, t2KvStore)
-                for _, newT1NodesAddrPair := range newT1NodesAddrPairs </span><span class="cov8" title="1">{
+                for _, newT1NodesAddrPair := range newT1NodesAddrPairs </span><span class="cov0" title="0">{
                         newT1Nodes = append(newT1Nodes, newT1NodesAddrPair.getProllyTreeNode(t1KvStore))
                 }</span>
-                <span class="cov8" title="1">for _, newT2NodesAddrPair := range newT2NodesAddrPairs </span><span class="cov8" title="1">{
+                <span class="cov0" title="0">for _, newT2NodesAddrPair := range newT2NodesAddrPairs </span><span class="cov0" title="0">{
                         newT2Nodes = append(newT2Nodes, newT2NodesAddrPair.getProllyTreeNode(t2KvStore))
                 }</span>
-        } else<span class="cov8" title="1"> if !t1NodesAreLeafs </span><span class="cov8" title="1">{
+        } else<span class="cov0" title="0"> if !t1NodesAreLeafs </span><span class="cov0" title="0">{
                 newT1Nodes = GetAllLeafs(t1Nodes, t1KvStore)
                 newT2Nodes = t2Nodes
         }</span> else<span class="cov0" title="0"> if !t2NodesAreLeafs </span><span class="cov0" title="0">{
                 newT1Nodes = t1Nodes
-                newT2Nodes = GetAllLeafs(t1Nodes, t1KvStore)
+                newT2Nodes = GetAllLeafs(t2Nodes, t2KvStore)
         }</span>
 
-        <span class="cov8" title="1">return FindNodesDiff(newT1Nodes, newT2Nodes, t1KvStore, t2KvStore)</span>
+        <span class="cov0" title="0">return FindNodesDiff(newT1Nodes, newT2Nodes, t1KvStore, t2KvStore)</span>
 }
 </pre>
 		

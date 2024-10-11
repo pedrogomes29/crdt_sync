@@ -247,6 +247,9 @@ func (node *ProllyTreeNode[K]) insert(key K, kvStore KVStore[ProllyTreeNode[K]],
 				oldChildIdx--
 			}
 		}
+		if child.children[len(child.children)-1].key.Hash() == hasher.Hstring("").Hash() {
+			fmt.Println("X")
+		}
 		node.children[oldChildIdx].key = child.children[len(child.children)-1].key
 		node.children[oldChildIdx].valueAddress = child.Hash()
 	}
@@ -268,20 +271,17 @@ func (node *ProllyTreeNode[K]) insertKAddrPair(pairIdx int, newKAddrPair KAddrPa
 	if pairIdx == len(node.children)-1 { //if key is inserted at the end
 		lastKAddrPairB4Insert := node.children[len(node.children)-2]
 		if lastKAddrPairB4Insert.CheckBoundary(level, config.Target) {
-			newNode = &ProllyTreeNode[K]{}
-
-			newNode.children = make([]KAddrPair[K], pairIdx)
-			copy(newNode.children, node.children[pairIdx:])
-
-			node.children = node.children[:pairIdx]
+			newNode = &ProllyTreeNode[K]{
+				children: node.children[pairIdx:len(node.children):len(node.children)],
+			}
+			node.children = node.children[:pairIdx:pairIdx]
 		}
+
 	} else if newKAddrPair.CheckBoundary(level, config.Target) {
-		newNode = &ProllyTreeNode[K]{}
-
-		newNode.children = make([]KAddrPair[K], len(node.children[:pairIdx+1]))
-		copy(newNode.children, node.children[:pairIdx+1])
-
-		node.children = node.children[pairIdx+1:]
+		newNode = &ProllyTreeNode[K]{
+			children: node.children[: pairIdx+1 : pairIdx+1],
+		}
+		node.children = node.children[pairIdx+1 : len(node.children) : len(node.children)]
 	}
 	return newNode
 }

@@ -64,9 +64,8 @@ func TestDiffSameTree(t *testing.T) {
 
 }
 
-/*
 func TestDiffDifferentTrees(t *testing.T) {
-	keys := GenerateKeys(100000)
+	keys := GenerateKeys(1000)
 
 	nrKeysT1ExceptT2 := 5
 	nrKeysT2ExceptT1 := 5
@@ -92,14 +91,33 @@ func TestDiffDifferentTrees(t *testing.T) {
 		t.Errorf("Expected T2 except T1 to be %v, but got %v", expectedT2ExceptT1, actualT2ExceptT1)
 	}
 }
-*/
 
 func TestInsert(t *testing.T) {
-	keys := GenerateKeys(35)
+	keys := GenerateKeys(1000)
 
 	treeGeneratedAtOnce := InitProllyTree(keys, 3)
 	treeGeneratedIteratively := InitProllyTree([]hasher.Hstring{}, 3)
 	for _, key := range keys {
+		treeGeneratedIteratively.Insert(key)
+	}
+
+	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.Diff(*treeGeneratedIteratively)
+
+	if len(actualT1ExceptT2) > 0 {
+		t.Errorf("Expected T1 except T2 to be empty but got %v", actualT1ExceptT2)
+	}
+
+	if len(actualT2ExceptT1) > 0 {
+		t.Errorf("Expected T2 except T1 to be empty but got %v", actualT2ExceptT1)
+	}
+}
+
+func TestInsertDiffOrder(t *testing.T) {
+	keys := GenerateKeys(1000)
+	randomlySortedKeys := GetShuffledSliceCopy(keys)
+	treeGeneratedAtOnce := InitProllyTree(keys, 3)
+	treeGeneratedIteratively := InitProllyTree([]hasher.Hstring{}, 3)
+	for _, key := range randomlySortedKeys {
 		treeGeneratedIteratively.Insert(key)
 	}
 

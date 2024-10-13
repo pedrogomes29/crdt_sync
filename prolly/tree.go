@@ -140,6 +140,18 @@ func (tree *ProllyTree[K]) IsEmpty() bool {
 	return reflect.ValueOf(tree.rootAddress).IsZero()
 }
 
+func (node *ProllyTreeNode[K]) getChildWithKeyIdx(key K) (int, bool) {
+	keyHash := key.Hash()
+	for childIdx, kAddrPair := range node.children {
+		childHash := kAddrPair.key.Hash()
+		comparison := bytes.Compare(keyHash[:], childHash[:])
+		if comparison <= 0 { //if new key is smaller or equal to the current key
+			return childIdx, true
+		}
+	}
+	return -1, false
+}
+
 func (tree *ProllyTree[K]) Insert(key K) {
 	var newRoot *ProllyTreeNode[K]
 	if tree.IsEmpty() {
@@ -193,18 +205,15 @@ func (tree *ProllyTree[K]) Insert(key K) {
 }
 
 func (node *ProllyTreeNode[K]) insert(key K, kvStore KVStore[ProllyTreeNode[K]], config ProllyTreeConfig) (newBoundaryNode *ProllyTreeNode[K], nodeLevel int) {
-	keyHash := key.Hash()
-	firstBiggerKeyIdx := len(node.children)
-
-	for childIdx, kAddrPair := range node.children {
-		childHash := kAddrPair.key.Hash()
+	firstBiggerKeyIdx, ok := node.getChildWithKeyIdx(key)
+	if !ok {
+		firstBiggerKeyIdx = len(node.children)
+	} else {
+		childHash := node.children[firstBiggerKeyIdx].key.Hash()
+		keyHash := key.Hash()
 		comparison := bytes.Compare(keyHash[:], childHash[:])
 		if comparison == 0 {
 			return nil, -1
-		}
-		if comparison < 0 { //if new key is smaller than the current key
-			firstBiggerKeyIdx = childIdx
-			break
 		}
 	}
 	outdatedNodeHash := node.Hash()

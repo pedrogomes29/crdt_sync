@@ -131,3 +131,27 @@ func TestInsertDiffOrder(t *testing.T) {
 		t.Errorf("Expected T2 except T1 to be empty but got %v", actualT2ExceptT1)
 	}
 }
+
+func TestInsertDelete(t *testing.T) {
+	keysToInsert := GenerateKeys(1000)
+	keysToDelete := keysToInsert[:100]
+	remainingKeys := keysToInsert[100:]
+	treeGeneratedAtOnce := InitProllyTree(remainingKeys, 3)
+	treeGeneratedIteratively := InitProllyTree([]hasher.Hstring{}, 3)
+	for _, key := range keysToInsert {
+		treeGeneratedIteratively.Insert(key)
+	}
+	for _, key := range keysToDelete {
+		treeGeneratedIteratively.Delete(key)
+	}
+
+	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.Diff(*treeGeneratedIteratively)
+
+	if len(actualT1ExceptT2) > 0 {
+		t.Errorf("Expected T1 except T2 to be empty but got %v", actualT1ExceptT2)
+	}
+
+	if len(actualT2ExceptT1) > 0 {
+		t.Errorf("Expected T2 except T1 to be empty but got %v", actualT2ExceptT1)
+	}
+}

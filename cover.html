@@ -61,7 +61,7 @@
 				
 				<option value="file2">crdt_sync/prolly/kvstore.go (100.0%)</option>
 				
-				<option value="file3">crdt_sync/prolly/tree.go (76.7%)</option>
+				<option value="file3">crdt_sync/prolly/tree.go (79.9%)</option>
 				
 				</select>
 			</div>
@@ -355,20 +355,6 @@ func (tree *ProllyTree[K]) IsEmpty() bool <span class="cov8" title="1">{
         return reflect.ValueOf(tree.rootAddress).IsZero()
 }</span>
 
-
-func (tree *ProllyTree[K]) Delete(key K) <span class="cov0" title="0">{
-        if tree.IsEmpty()</span><span class="cov0" title="0">{
-                return
-        }</span> else<span class="cov0" title="0">{
-                root :=  tree.kvStore.Get(tree.rootAddress)
-                root.delete(key)
-        }</span>
-}
-
-func (node *ProllyTreeNode[K]) delete(key K){<span class="cov0" title="0">
-
-}</span>
-
 func (node *ProllyTreeNode[K]) getChildWithKeyIdx(key K) (int, bool)<span class="cov8" title="1">{
         keyHash := key.Hash()
         for childIdx, kAddrPair := range node.children </span><span class="cov8" title="1">{
@@ -379,6 +365,83 @@ func (node *ProllyTreeNode[K]) getChildWithKeyIdx(key K) (int, bool)<span class=
                 }</span>
         }
         <span class="cov8" title="1">return -1, false</span>
+}
+
+func (tree *ProllyTree[K]) Delete(key K) <span class="cov8" title="1">{
+        if tree.IsEmpty()</span><span class="cov0" title="0">{
+                return
+        }</span> else<span class="cov8" title="1">{
+                root :=  tree.kvStore.Get(tree.rootAddress)
+                root.delete(key, tree.kvStore, true)
+
+                if len(root.children)==0</span><span class="cov0" title="0">{
+                        tree.rootAddress = [32]byte{}
+                        return
+                }</span>
+
+                <span class="cov8" title="1">for len(root.children)==1</span><span class="cov8" title="1">{
+                        tree.kvStore.Delete(root.Hash())
+                        newRootAddress := root.children[0].valueAddress
+                        root = tree.kvStore.Get(newRootAddress)
+                }</span>
+
+                <span class="cov8" title="1">tree.rootAddress = root.Hash()</span>
+        }
+}
+
+
+func adjustOrphanKaddrPairs[K hasher.Hasher] (nodeToBeDeleted *ProllyTreeNode[K], nextNode *ProllyTreeNode[K], kvStore KVStore[ProllyTreeNode[K]])<span class="cov8" title="1">{
+        kvStore.Delete(nextNode.Hash())
+
+        if !nodeToBeDeleted.isLeaf()</span><span class="cov8" title="1">{
+                childToBeDeletedAddr := nodeToBeDeleted.children[len(nodeToBeDeleted.children)-1].valueAddress
+                childToBeDeleted := kvStore.Get(childToBeDeletedAddr)
+                childNextNodeAddr := nextNode.children[0].valueAddress
+                childNextNode := kvStore.Get(childNextNodeAddr)
+                adjustOrphanKaddrPairs(&amp;childToBeDeleted,&amp;childNextNode, kvStore)
+                nextNode.children[0].valueAddress = childNextNode.Hash()
+        }</span>
+        <span class="cov8" title="1">nextNode.children = append(nodeToBeDeleted.children[:len(nodeToBeDeleted.children)-1], nextNode.children...)
+
+        kvStore.Put(nextNode.Hash(),*nextNode)</span>
+}
+
+func (node *ProllyTreeNode[K]) delete(key K, kvStore KVStore[ProllyTreeNode[K]], isLastOfLevel bool) (removedHighestKey bool)<span class="cov8" title="1">{
+        childWithKeyIdx, ok := node.getChildWithKeyIdx(key)
+        removingFromLast := childWithKeyIdx == len(node.children)-1
+        keyHash := key.Hash()
+        keyUsedToIndexChild := node.children[childWithKeyIdx].key.Hash()
+        removingChildKeyIndex := bytes.Equal(keyHash[:], keyUsedToIndexChild[:])
+        if !ok</span><span class="cov0" title="0">{
+                return false
+        }</span>else<span class="cov8" title="1"> if node.isLeaf()</span><span class="cov8" title="1">{
+                removedHighestKey = isLastOfLevel &amp;&amp; removingFromLast
+                if removedHighestKey || !removingFromLast</span><span class="cov8" title="1">{
+                        node.children = append(node.children[:childWithKeyIdx], node.children[childWithKeyIdx+1:]...)
+                }</span>
+        }else<span class="cov8" title="1">{
+                childWithKeyAddress := node.children[childWithKeyIdx].valueAddress
+                childWithKey := kvStore.Get(childWithKeyAddress)
+                removedHighestKey = childWithKey.delete(key, kvStore, isLastOfLevel &amp;&amp; removingFromLast)
+                if removingChildKeyIndex</span><span class="cov8" title="1">{
+                        if removedHighestKey</span><span class="cov0" title="0">{
+                                node.children[childWithKeyIdx].key = childWithKey.children[len(childWithKey.children)-1].key
+                                node.children[childWithKeyIdx].valueAddress = childWithKey.Hash()
+                        }</span>else<span class="cov8" title="1"> if !removingFromLast</span><span class="cov8" title="1">{
+                                nextNodeAddr := node.children[childWithKeyIdx+1].valueAddress
+                                nextNode :=  kvStore.Get(nextNodeAddr)
+                                adjustOrphanKaddrPairs(&amp;childWithKey,&amp;nextNode,kvStore)
+                                node.children[childWithKeyIdx+1].valueAddress = nextNode.Hash()
+                                node.children = append(node.children[:childWithKeyIdx], node.children[childWithKeyIdx+1:]...)
+                        }</span>
+                }else<span class="cov8" title="1">{
+                        node.children[childWithKeyIdx].valueAddress = childWithKey.Hash()
+                }</span>
+        }
+        
+        <span class="cov8" title="1">kvStore.Put(node.Hash(), *node)
+        
+        return</span>
 }
 
 func (tree *ProllyTree[K]) Insert(key K) <span class="cov8" title="1">{
@@ -485,9 +548,6 @@ func (node *ProllyTreeNode[K]) insert(key K, kvStore KVStore[ProllyTreeNode[K]],
                                 oldChildIdx--
                         }</span>
                 }
-                <span class="cov8" title="1">if child.children[len(child.children)-1].key.Hash() == hasher.Hstring("").Hash() </span><span class="cov0" title="0">{
-                        fmt.Println("X")
-                }</span>
                 <span class="cov8" title="1">node.children[oldChildIdx].key = child.children[len(child.children)-1].key
                 node.children[oldChildIdx].valueAddress = child.Hash()</span>
         }
@@ -523,6 +583,7 @@ func (node *ProllyTreeNode[K]) insertKAddrPair(pairIdx int, newKAddrPair KAddrPa
         }</span>
         <span class="cov8" title="1">return newNode</span>
 }
+
 
 func (node ProllyTreeNode[K]) String(kvStore KVStore[ProllyTreeNode[K]]) string <span class="cov0" title="0">{
         var sb strings.Builder

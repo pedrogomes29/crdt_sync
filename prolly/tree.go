@@ -152,6 +152,82 @@ func (node *ProllyTreeNode[K]) getChildWithKeyIdx(key K) (int, bool) {
 	return -1, false
 }
 
+func (tree *ProllyTree[K]) Delete(key K) {
+	if tree.IsEmpty() {
+		return
+	} else {
+		root := tree.kvStore.Get(tree.rootAddress)
+		root.delete(key, tree.kvStore, true)
+
+		if len(root.children) == 0 {
+			tree.rootAddress = [32]byte{}
+			return
+		}
+
+		for len(root.children) == 1 {
+			tree.kvStore.Delete(root.Hash())
+			newRootAddress := root.children[0].valueAddress
+			root = tree.kvStore.Get(newRootAddress)
+		}
+
+		tree.rootAddress = root.Hash()
+	}
+}
+
+func adjustOrphanKaddrPairs[K hasher.Hasher](nodeToBeDeleted *ProllyTreeNode[K], nextNode *ProllyTreeNode[K], kvStore KVStore[ProllyTreeNode[K]]) {
+	kvStore.Delete(nextNode.Hash())
+
+	if !nodeToBeDeleted.isLeaf() {
+		childToBeDeletedAddr := nodeToBeDeleted.children[len(nodeToBeDeleted.children)-1].valueAddress
+		childToBeDeleted := kvStore.Get(childToBeDeletedAddr)
+		childNextNodeAddr := nextNode.children[0].valueAddress
+		childNextNode := kvStore.Get(childNextNodeAddr)
+		adjustOrphanKaddrPairs(&childToBeDeleted, &childNextNode, kvStore)
+		nextNode.children[0].valueAddress = childNextNode.Hash()
+	}
+	nextNode.children = append(nodeToBeDeleted.children[:len(nodeToBeDeleted.children)-1], nextNode.children...)
+
+	kvStore.Put(nextNode.Hash(), *nextNode)
+}
+
+func (node *ProllyTreeNode[K]) delete(key K, kvStore KVStore[ProllyTreeNode[K]], isLastOfLevel bool) (removedHighestKey bool) {
+	childWithKeyIdx, ok := node.getChildWithKeyIdx(key)
+	removingFromLast := childWithKeyIdx == len(node.children)-1
+	keyHash := key.Hash()
+	keyUsedToIndexChild := node.children[childWithKeyIdx].key.Hash()
+	removingChildKeyIndex := bytes.Equal(keyHash[:], keyUsedToIndexChild[:])
+	if !ok {
+		return false
+	} else if node.isLeaf() {
+		removedHighestKey = isLastOfLevel && removingFromLast
+		if removedHighestKey || !removingFromLast {
+			node.children = append(node.children[:childWithKeyIdx], node.children[childWithKeyIdx+1:]...)
+		}
+	} else {
+		childWithKeyAddress := node.children[childWithKeyIdx].valueAddress
+		childWithKey := kvStore.Get(childWithKeyAddress)
+		removedHighestKey = childWithKey.delete(key, kvStore, isLastOfLevel && removingFromLast)
+		if removingChildKeyIndex {
+			if removedHighestKey {
+				node.children[childWithKeyIdx].key = childWithKey.children[len(childWithKey.children)-1].key
+				node.children[childWithKeyIdx].valueAddress = childWithKey.Hash()
+			} else if !removingFromLast {
+				nextNodeAddr := node.children[childWithKeyIdx+1].valueAddress
+				nextNode := kvStore.Get(nextNodeAddr)
+				adjustOrphanKaddrPairs(&childWithKey, &nextNode, kvStore)
+				node.children[childWithKeyIdx+1].valueAddress = nextNode.Hash()
+				node.children = append(node.children[:childWithKeyIdx], node.children[childWithKeyIdx+1:]...)
+			}
+		} else {
+			node.children[childWithKeyIdx].valueAddress = childWithKey.Hash()
+		}
+	}
+
+	kvStore.Put(node.Hash(), *node)
+
+	return
+}
+
 func (tree *ProllyTree[K]) Insert(key K) {
 	var newRoot *ProllyTreeNode[K]
 	if tree.IsEmpty() {
@@ -255,9 +331,6 @@ func (node *ProllyTreeNode[K]) insert(key K, kvStore KVStore[ProllyTreeNode[K]],
 			if firstBiggerKeyIdx == len(node.children) {
 				oldChildIdx--
 			}
-		}
-		if child.children[len(child.children)-1].key.Hash() == hasher.Hstring("").Hash() {
-			fmt.Println("X")
 		}
 		node.children[oldChildIdx].key = child.children[len(child.children)-1].key
 		node.children[oldChildIdx].valueAddress = child.Hash()

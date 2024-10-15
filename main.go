@@ -43,7 +43,7 @@ func main() {
 		treeGeneratedIteratively.Delete(key)
 	}
 
-	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.Diff(*treeGeneratedIteratively)
+	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.LocalDiff(*treeGeneratedIteratively)
 
 	if len(actualT1ExceptT2) > 0 {
 		fmt.Printf("Expected T1 except T2 to be empty but got %v", actualT1ExceptT2)

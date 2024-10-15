@@ -428,7 +428,7 @@ func (node ProllyTreeNode[K]) Hash(seed ...byte) [32]byte {
 	return sha256.Sum256(data)
 }
 
-func (t1 ProllyTree[K]) Diff(t2 ProllyTree[K]) ([]K, []K) {
+func (t1 ProllyTree[K]) LocalDiff(t2 ProllyTree[K]) ([]K, []K) {
 	if t1.rootAddress == t2.rootAddress {
 		return []K{}, []K{}
 	}
@@ -438,6 +438,8 @@ func (t1 ProllyTree[K]) Diff(t2 ProllyTree[K]) ([]K, []K) {
 
 	return FindNodesDiff([]ProllyTreeNode[K]{t1Root}, []ProllyTreeNode[K]{t2Root}, t1.kvStore, t2.kvStore)
 }
+
+
 
 func GetAllLeafs[K hasher.Hasher](nodes []ProllyTreeNode[K], kvStore KVStore[ProllyTreeNode[K]]) []ProllyTreeNode[K] {
 	nodesAreLeafs := nodes[0].children[0].isLeaf()

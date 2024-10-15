@@ -56,7 +56,7 @@ func TestDiffSameTree(t *testing.T) {
 	keys2 := GetShuffledSliceCopy(keys)
 	tree2 := InitProllyTree(keys2, 3)
 
-	t1ExceptT2, t2ExceptT1 := tree1.Diff(*tree2)
+	t1ExceptT2, t2ExceptT1 := tree1.LocalDiff(*tree2)
 
 	if len(t1ExceptT2) > 0 || len(t2ExceptT1) > 0 {
 		t.Errorf("expected there to be no differences, found %v and %v", t1ExceptT2, t2ExceptT1)
@@ -76,7 +76,7 @@ func TestDiffDifferentTrees(t *testing.T) {
 	keys2 := GetShuffledSliceCopy(keys[:len(keys)-nrKeysT1ExceptT2])
 	tree2 := InitProllyTree(keys2, 3)
 
-	actualT1ExceptT2, actualT2ExceptT1 := tree1.Diff(*tree2)
+	actualT1ExceptT2, actualT2ExceptT1 := tree1.LocalDiff(*tree2)
 
 	expectedT1ExceptT2 := keys[len(keys)-nrKeysT1ExceptT2:]
 	expectedT2ExceptT1 := keys[:nrKeysT2ExceptT1]
@@ -101,7 +101,7 @@ func TestInsert(t *testing.T) {
 		treeGeneratedIteratively.Insert(key)
 	}
 
-	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.Diff(*treeGeneratedIteratively)
+	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.LocalDiff(*treeGeneratedIteratively)
 
 	if len(actualT1ExceptT2) > 0 {
 		t.Errorf("Expected T1 except T2 to be empty but got %v", actualT1ExceptT2)
@@ -121,7 +121,7 @@ func TestInsertDiffOrder(t *testing.T) {
 		treeGeneratedIteratively.Insert(key)
 	}
 
-	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.Diff(*treeGeneratedIteratively)
+	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.LocalDiff(*treeGeneratedIteratively)
 
 	if len(actualT1ExceptT2) > 0 {
 		t.Errorf("Expected T1 except T2 to be empty but got %v", actualT1ExceptT2)
@@ -145,7 +145,7 @@ func TestInsertDelete(t *testing.T) {
 		treeGeneratedIteratively.Delete(key)
 	}
 
-	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.Diff(*treeGeneratedIteratively)
+	actualT1ExceptT2, actualT2ExceptT1 := treeGeneratedAtOnce.LocalDiff(*treeGeneratedIteratively)
 
 	if len(actualT1ExceptT2) > 0 {
 		t.Errorf("Expected T1 except T2 to be empty but got %v", actualT1ExceptT2)
